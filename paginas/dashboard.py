@@ -48,7 +48,7 @@ st.markdown("---")
 # 1. Tabela de Resumo
 st.subheader(f"Estatísticas: {var_label}")
 # Tabela agrupada por País (opcional) ou geral
-if len(sel_pais) > 1:
+if len(paises_filtro) > 1:
     st.markdown("**Por País:**")
     stats_pais = df_filtered.groupby('country')[var_coluna].agg(['mean', 'max', 'min', 'std']).reset_index()
     stats_pais.columns = ['País', 'Média', 'Máxima', 'Mínima', 'Desvio Padrão']
