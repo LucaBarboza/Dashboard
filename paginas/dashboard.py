@@ -1,6 +1,21 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import carregar_dados_reais from app.py
+
+# Carrega os dados
+df = carregar_dados_reais()
+
+# Deixando os nomes mais bonitos no seletor
+cols_numericas = {
+    'Vento (km/h)': 'wind_kph',
+    'Pressão (in)': 'pressure_in', 
+    'Precipitação (mm)': 'precip_mm', 
+    'Umidade (%)': 'humidity', 
+    'Cobertura de Nuvens (%)': 'cloud',
+    'Índice UV': 'uv_index',
+    'Sensação Térmica (C)': 'feels_like_celsius'
+}
 
 col_sel1, col_sel2 = st.columns([1, 3])
 with col_sel1:
