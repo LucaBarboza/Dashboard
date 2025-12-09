@@ -38,25 +38,76 @@ cols_numericas = {
     'Sensação Térmica (C)': 'feels_like_celsius'
 }
 
-col_sel1, col_sel2 = st.columns([1, 3])
-with col_sel1:
-    var_label = st.selectbox("Escolha a Variável:", list(cols_numericas.keys()))
-    var_coluna = cols_numericas[var_label]
+variavel_analise = st.selectbox(
+    "Escolha a variável para análise",
+    options=cols_numericas,
+    index=0
+)
 
-st.markdown("---")
+if variavel_analise:
+    tabela_final = df.groupby(variavel_analise).agg(
+        ['count', 'mean', 'std', 'min', 'max', 'median']
+    ).reset_index()
+    tabela_final = tabela_final.sort_values(by='mean', ascending=False)
 
-# 1. Tabela de Resumo
-st.subheader(f"Estatísticas: {var_label}")
-# Tabela agrupada por País (opcional) ou geral
-if len(paises_filtro) > 1:
-    st.markdown("**Por País:**")
-    stats_pais = df_filtered.groupby('country')[var_coluna].agg(['mean', 'max', 'min', 'std']).reset_index()
-    stats_pais.columns = ['País', 'Média', 'Máxima', 'Mínima', 'Desvio Padrão']
-    st.dataframe(stats_pais.style.format({"Média": "{:.3f}", "Desvio Padrão": "{:.3f}"}), use_container_width=True)
-else:
-    stats = df_filtered[var_coluna].agg(['mean', 'max', 'min', 'std']).to_frame().T
-    stats.columns = ['Média', 'Máxima', 'Mínima', 'Desvio Padrão']
-    st.dataframe(stats.style.format({"Média": "{:.3f}", "Desvio Padrão": "{:.3f}"}), use_container_width=True)
+    st.dataframe(
+        tabela_final,
+        use_container_width=True,
+        hide_index=True, # Esconde o índice numérico padrão do Pandas
+        column_config={
+            variavel_analise: st.column_config.TextColumn(
+                "Categoria",
+                width="medium"
+            ),
+            "count": st.column_config.NumberColumn(
+                "Tamanho",
+                format="%d",
+                help="Número de registros"
+            ),
+            "mean": st.column_config.NumberColumn(
+                "Média",
+                format="%.2f",
+                help="Média Aritmética"
+            ),
+            "std": st.column_config.NumberColumn(
+                "Desvio Padrão",
+                format="%.2f",
+                help="Medida de dispersão"
+            ),
+            "min": st.column_config.NumberColumn(
+                "Mínimo",
+                format="%.2f"
+            ),
+            "max": st.column_config.NumberColumn(
+                "Máximo",
+                format="%.2f"
+            ),
+            "median": st.column_config.NumberColumn(
+                "Mediana",
+                format="%.2f"
+            )
+        }
+    )
+
+# col_sel1, col_sel2 = st.columns([1, 3])
+# with col_sel1:
+#     var_label = st.selectbox("Escolha a Variável:", list(cols_numericas.keys()))
+#     var_coluna = cols_numericas[var_label]
+
+# st.markdown("---")
+
+# # 1. Tabela de Resumo
+# st.subheader(f"Estatísticas: {var_label}")
+# # Tabela agrupada por País (opcional) ou geral
+# if len(paises_filtro) > 1:
+#     st.markdown("**Por País:**")
+#     stats_pais = df_filtered.groupby('country')[var_coluna].agg(['mean', 'max', 'min', 'std']).reset_index()
+#     stats_pais.columns = ['País', 'Média', 'Máxima', 'Mínima', 'Desvio Padrão']
+#     st.dataframe(stats_pais.style.format({"Média": "{:.3f}", "Desvio Padrão": "{:.3f}"}), use_container_width=True)
+# else:
+#     stats = df_filtered[var_coluna].agg(['mean', 'max', 'min', 'std']).to_frame().T
+#     stats.columns = ['Média', 'Máxima', 'Mínima', 'Desvio Padrão']
+#     st.dataframe(stats.style.format({"Média": "{:.3f}", "Desvio Padrão": "{:.3f}"}), use_container_width=True)
 
 # # 2. Gráficos
 # c1, c2 = st.columns(2)
