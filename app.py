@@ -21,7 +21,7 @@ paginas = {
 @st.cache_data
 def carregar_dados_reais():
     # Lê o arquivo CSV enviado
-    df = pd.read_csv("dataframe_analise_dados.csv")
+    df = pd.read_csv("dataframe/dados_AS.csv")
     
     # Conversão de data
     df['last_updated'] = pd.to_datetime(df['last_updated'])
@@ -33,11 +33,7 @@ def carregar_dados_reais():
     return df
 
 # Carrega os dados
-try:
-    df = carregar_dados_reais()
-except FileNotFoundError:
-    st.error("Erro: O arquivo 'dataframe_analise_dados.csv' não foi encontrado. Certifique-se de que ele está na mesma pasta do script.")
-    st.stop()
+df = carregar_dados_reais()
 
 # Execução da navegação
 pag = st.navigation(paginas)
