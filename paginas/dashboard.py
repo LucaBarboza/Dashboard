@@ -18,6 +18,15 @@ def carregar_dados():
 
 df = carregar_dados()
 
+paises = sorted(df['country'].unique().astype(str))
+paises_filtro = st.sidebar.multiselect("Filtrar País:", paises, default=paises)
+
+# Aplica o filtro
+if paises_filtro:
+    df_filtered = df[df['country'].isin(paises_filtro)]
+else:
+    df_filtered = df
+
 # Deixando os nomes mais bonitos no seletor
 cols_numericas = {
     'Vento (km/h)': 'wind_kph',
