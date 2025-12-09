@@ -44,3 +44,5 @@ else:
 # fig_line = px.line(df_line, x="Data_Dia", y=var_coluna, color="country", 
 #                     title=f"Série Temporal de {var_label}")
 # st.plotly_chart(fig_line, use_container_width=True)
+
+pag.run()
