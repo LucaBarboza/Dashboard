@@ -1,4 +1,6 @@
 import streamlit as st
+import pandas as pd
+import plotly.express as px
 
 st.set_page_config(
     page_title="Análise Climática",
@@ -34,6 +36,17 @@ def carregar_dados_reais():
 
 # Carrega os dados
 df = carregar_dados_reais()
+
+# Deixando os nomes mais bonitos no seletor
+cols_numericas = {
+    'Vento (km/h)': 'wind_kph',
+    'Pressão (in)': 'pressure_in', 
+    'Precipitação (mm)': 'precip_mm', 
+    'Umidade (%)': 'humidity', 
+    'Cobertura de Nuvens (%)': 'cloud',
+    'Índice UV': 'uv_index',
+    'Sensação Térmica (C)': 'feels_like_celsius'
+}
 
 # Execução da navegação
 pag = st.navigation(paginas)
