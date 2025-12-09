@@ -8,9 +8,12 @@ st.set_page_config(
 
 # Configuração da navegação entre páginas
 paginas = {
-    st.Page('paginas/home.py', title='Home', default=True),
-    'Análise de dados': [
-        st.Page('paginas/dashboard.py', title='Dashboard Interativo das Análises Climáticas', default=False),
+    # Use aspas vazias aqui para "esconder" o título da seção
+    "": [
+        st.Page('paginas/home.py', title='Home', default=True),
+    ],
+    "Análise de dados": [
+        st.Page('paginas/dashboard.py', title='Dashboard Interativo', default=False),
         st.Page('paginas/mapa.py', title='Mapa Temporal Climático', default=False)
     ]
 }
