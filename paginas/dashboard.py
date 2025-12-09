@@ -1,10 +1,22 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import carregar_dados_reais from app.py
+import streamlit as st
+import pandas as pd
+import plotly.express as px
 
-# Carrega os dados
-df = carregar_dados_reais()
+st.set_page_config(page_title="Análise Descritiva", layout="wide")
+
+@st.cache_data
+def carregar_dados():
+    try:
+        df = pd.read_csv("dataframe/dados_AS.csv")
+        df['last_updated'] = pd.to_datetime(df['last_updated'])
+        df['Data_Dia'] = df['last_updated'].dt.date
+        return df
+    except: return None
+
+df = carregar_dados()
 
 # Deixando os nomes mais bonitos no seletor
 cols_numericas = {
