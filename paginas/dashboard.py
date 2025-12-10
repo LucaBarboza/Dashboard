@@ -101,49 +101,68 @@ st.dataframe(
     }
 )
 
-# # --- GRÁFICOS ---
-# st.markdown("---")
-# st.subheader("📈 Visualização Gráfica")
+# --- GRÁFICOS ---
+st.markdown("---")
+st.subheader("📈 Visualização Gráfica")
 
-# col1, col2 = st.columns(2)
+# Define configurações dinâmicas baseadas no filtro
+if not paises_filtro:
+    # MODO GERAL: Gráficos únicos (sem separar por cores de países)
+    cor_grafico = None           # Uma cor só para tudo
+    eixo_x_box = None            # Um boxplot único
+    colunas_agrupamento = ['Data_Dia'] # Agrupa só por data (média mundial)
+    sulfixo_titulo = " (Visão Global)"
+else:
+    # MODO DETALHADO: Separa por cores dos países
+    cor_grafico = "country"
+    eixo_x_box = "country"
+    colunas_agrupamento = ['Data_Dia', 'country'] # Mantém a separação
+    sulfixo_titulo = " (por País)"
 
-# with col1:
-#     st.markdown("**Distribuição (Histograma)**")
-#     # Histograma mostra como os dados se distribuem
-#     fig_hist = px.histogram(
-#         df_filtered, 
-#         x=var_coluna, 
-#         color="country", 
-#         nbins=30,
-#         title=f"Distribuição de {var_label}",
-#         opacity=0.7
-#     )
-#     st.plotly_chart(fig_hist, use_container_width=True)
+col1, col2 = st.columns(2)
 
-# with col2:
-#     st.markdown("**Comparação (Boxplot)**")
-#     # Boxplot é ótimo para ver outliers e dispersão entre países
-#     fig_box = px.box(
-#         df_filtered, 
-#         x="country", 
-#         y=var_coluna, 
-#         color="country", 
-#         title=f"Boxplot de {var_label}"
-#     )
-#     st.plotly_chart(fig_box, use_container_width=True)
+with col1:
+    st.markdown("**Distribuição (Histograma)**")
+    fig_hist = px.histogram(
+        df_filtered, 
+        x=var_coluna, 
+        color=cor_grafico, # Muda dinamicamente
+        nbins=30,
+        title=f"Distribuição de {var_label}{sulfixo_titulo}",
+        opacity=0.7
+    )
+    # Se for geral, remove a legenda automática que pode ficar poluída
+    if not paises_filtro:
+        fig_hist.update_layout(showlegend=False)
+        
+    st.plotly_chart(fig_hist, use_container_width=True)
 
-# # Gráfico de Linha (Série Temporal)
-# st.markdown("**Evolução no Tempo (Média Diária)**")
+with col2:
+    st.markdown("**Comparação (Boxplot)**")
+    fig_box = px.box(
+        df_filtered, 
+        x=eixo_x_box,   # Se for geral, remove o eixo X (fica um box só)
+        y=var_coluna, 
+        color=cor_grafico, 
+        title=f"Boxplot de {var_label}{sulfixo_titulo}"
+    )
+    if not paises_filtro:
+        fig_box.update_layout(showlegend=False, xaxis_title="Global")
+        
+    st.plotly_chart(fig_box, use_container_width=True)
 
-# # Agrupamos por Dia e País para o gráfico de linha não ficar "sujo" com muitos pontos
-# df_line = df_filtered.groupby(['Data_Dia', 'country'])[var_coluna].mean().reset_index()
+# Gráfico de Linha (Série Temporal)
+st.markdown("**Evolução no Tempo (Média Diária)**")
 
-# fig_line = px.line(
-#     df_line, 
-#     x="Data_Dia", 
-#     y=var_coluna, 
-#     color="country", 
-#     markers=True,
-#     title=f"Evolução de {var_label} ao longo do tempo"
-# )
-# st.plotly_chart(fig_line, use_container_width=True)
+# Agrupamento dinâmico (Geral ou por País)
+df_line = df_filtered.groupby(colunas_agrupamento)[var_coluna].mean().reset_index()
+
+fig_line = px.line(
+    df_line, 
+    x="Data_Dia", 
+    y=var_coluna, 
+    color=cor_grafico, # Se for None, desenha uma linha única
+    markers=True,
+    title=f"Evolução de {var_label}{sulfixo_titulo}"
+)
+st.plotly_chart(fig_line, use_container_width=True)
