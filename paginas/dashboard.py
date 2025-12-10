@@ -58,36 +58,41 @@ st.markdown("---")
 # --- ANÁLISE ESTATÍSTICA (Tabela) ---
 st.subheader(f"📊 Análise: {var_label}")
 
-# 1. Calcula os dados por PAÍS (Detalhe)
-tabela_stats = df_filtered.groupby('country')[var_coluna].agg(
-    ['count', 'mean', 'std', 'min', 'max', 'median']
-).reset_index()
+if not paises_filtro:
+    # CENÁRIO 1: NENHUM PAÍS SELECIONADO -> MOSTRAR APENAS GERAL
+    st.subheader(f"🌍 Visão Geral: {var_label}")
+    
+    # Cria uma linha única com os dados de TODO o banco de dados
+    tabela_final = pd.DataFrame({
+        'country': ['MÉDIA GERAL (Todos os Países)'],
+        'count': [df[var_coluna].count()],
+        'mean': [df[var_coluna].mean()],
+        'std': [df[var_coluna].std()],
+        'min': [df[var_coluna].min()],
+        'max': [df[var_coluna].max()],
+        'median': [df[var_coluna].median()]
+    })
 
-# Ordena o detalhe (ex: do maior para o menor)
-tabela_stats = tabela_stats.sort_values(by='mean', ascending=False)
+else:
+    # CENÁRIO 2: PAÍSES SELECIONADOS -> MOSTRAR DETALHE DELES
+    st.subheader(f"📍 Detalhamento por País: {var_label}")
+    
+    # Filtra e agrupa apenas os selecionados
+    df_filtered = df[df['country'].isin(paises_filtro)]
+    
+    tabela_final = df_filtered.groupby('country')[var_coluna].agg(
+        ['count', 'mean', 'std', 'min', 'max', 'median']
+    ).reset_index()
+    
+    tabela_final = tabela_final.sort_values(by='mean', ascending=False)
 
-# 2. Calcula os dados GERAIS (O "Geralzão") com base nos dados filtrados
-# Nota: O desvio padrão geral deve ser calculado sobre os dados brutos, não a média dos desvios.
-linha_geral = pd.DataFrame({
-    'country': [f"🌍 MÉDIA GERAL ({titulo_resumo})"], 
-    'count': [df_filtered[var_coluna].count()],
-    'mean': [df_filtered[var_coluna].mean()],
-    'std': [df_filtered[var_coluna].std()],
-    'min': [df_filtered[var_coluna].min()],
-    'max': [df_filtered[var_coluna].max()],
-    'median': [df_filtered[var_coluna].median()]
-})
-
-# 3. JUNTAR AS DUAS (Geral em cima + Países embaixo)
-tabela_final = pd.concat([linha_geral, tabela_stats], ignore_index=True)
-
-# 4. Exibe a Tabela Unificada
+# EXIBIÇÃO DA TABELA (A mesma formatação serve para os dois casos)
 st.dataframe(
     tabela_final,
     use_container_width=True,
     hide_index=True,
     column_config={
-        "country": st.column_config.TextColumn("País / Referência", width="large"),
+        "country": st.column_config.TextColumn("Referência", width="large"),
         "count": st.column_config.NumberColumn("Nº Registros", format="%d"),
         "mean": st.column_config.NumberColumn("Média", format="%.2f"),
         "std": st.column_config.NumberColumn("Desv. Padrão", format="%.2f"),
