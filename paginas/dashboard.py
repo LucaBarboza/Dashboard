@@ -23,10 +23,13 @@ paises = sorted(df['country'].unique().astype(str))
 paises_filtro = st.sidebar.multiselect("Selecione os Países:", paises, default=paises)
 
 # Aplica o filtro no DataFrame
+# Lógica: Se a lista estiver vazia, pega o DF inteiro (Geralzão)
 if paises_filtro:
     df_filtered = df[df['country'].isin(paises_filtro)]
+    titulo_resumo = "Resumo dos Países Selecionados"
 else:
     df_filtered = df
+    titulo_resumo = "Resumo GERAL (Todos os Países)"
 
 # --- SELEÇÃO DE VARIÁVEL ---
 cols_numericas = {
@@ -53,7 +56,22 @@ var_coluna = cols_numericas[var_label]
 st.markdown("---")
 
 # --- ANÁLISE ESTATÍSTICA (Tabela) ---
-st.subheader(f"📊 Estatísticas de: {var_label}")
+# --- AQUI COMEÇA O NOVO BLOCO ---
+# Cabeçalho dinâmico (Geral ou Selecionado)
+st.subheader(f"📊 {titulo_resumo}: {var_label}")
+
+# Cálculo das métricas gerais
+media_geral = df_filtered[var_coluna].mean()
+max_geral = df_filtered[var_coluna].max()
+min_geral = df_filtered[var_coluna].min()
+
+# Exibição dos cartões (KPIs)
+kpi1, kpi2, kpi3 = st.columns(3)
+kpi1.metric(label="Média Geral", value=f"{media_geral:.2f}")
+kpi2.metric(label="Maior Valor", value=f"{max_geral:.2f}")
+kpi3.metric(label="Menor Valor", value=f"{min_geral:.2f}")
+
+st.markdown("---")
 
 # Agrupamos por PAÍS para ver a média/max/min da variável escolhida
 tabela_stats = df_filtered.groupby('country')[var_coluna].agg(
