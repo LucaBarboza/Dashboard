@@ -56,38 +56,38 @@ var_coluna = cols_numericas[var_label]
 st.markdown("---")
 
 # --- ANÁLISE ESTATÍSTICA (Tabela) ---
-# --- AQUI COMEÇA O NOVO BLOCO ---
-# Cabeçalho dinâmico (Geral ou Selecionado)
-st.subheader(f"📊 {titulo_resumo}: {var_label}")
+st.subheader(f"📊 Análise: {var_label}")
 
-# Cálculo das métricas gerais
-media_geral = df_filtered[var_coluna].mean()
-max_geral = df_filtered[var_coluna].max()
-min_geral = df_filtered[var_coluna].min()
-
-# Exibição dos cartões (KPIs)
-kpi1, kpi2, kpi3 = st.columns(3)
-kpi1.metric(label="Média Geral", value=f"{media_geral:.2f}")
-kpi2.metric(label="Maior Valor", value=f"{max_geral:.2f}")
-kpi3.metric(label="Menor Valor", value=f"{min_geral:.2f}")
-
-st.markdown("---")
-
-# Agrupamos por PAÍS para ver a média/max/min da variável escolhida
+# 1. Calcula os dados por PAÍS (Detalhe)
 tabela_stats = df_filtered.groupby('country')[var_coluna].agg(
     ['count', 'mean', 'std', 'min', 'max', 'median']
 ).reset_index()
 
-# Ordenar pela média maior
+# Ordena o detalhe (ex: do maior para o menor)
 tabela_stats = tabela_stats.sort_values(by='mean', ascending=False)
 
-# Exibe a tabela com formatação bonita
+# 2. Calcula os dados GERAIS (O "Geralzão") com base nos dados filtrados
+# Nota: O desvio padrão geral deve ser calculado sobre os dados brutos, não a média dos desvios.
+linha_geral = pd.DataFrame({
+    'country': [f"🌍 MÉDIA GERAL ({titulo_resumo})"], 
+    'count': [df_filtered[var_coluna].count()],
+    'mean': [df_filtered[var_coluna].mean()],
+    'std': [df_filtered[var_coluna].std()],
+    'min': [df_filtered[var_coluna].min()],
+    'max': [df_filtered[var_coluna].max()],
+    'median': [df_filtered[var_coluna].median()]
+})
+
+# 3. JUNTAR AS DUAS (Geral em cima + Países embaixo)
+tabela_final = pd.concat([linha_geral, tabela_stats], ignore_index=True)
+
+# 4. Exibe a Tabela Unificada
 st.dataframe(
-    tabela_stats,
+    tabela_final,
     use_container_width=True,
     hide_index=True,
     column_config={
-        "country": st.column_config.TextColumn("País"),
+        "country": st.column_config.TextColumn("País / Referência", width="large"),
         "count": st.column_config.NumberColumn("Nº Registros", format="%d"),
         "mean": st.column_config.NumberColumn("Média", format="%.2f"),
         "std": st.column_config.NumberColumn("Desv. Padrão", format="%.2f"),
