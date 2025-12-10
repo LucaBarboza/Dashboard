@@ -56,15 +56,12 @@ var_coluna = cols_numericas[var_label]
 st.markdown("---")
 
 # --- ANÁLISE ESTATÍSTICA (Tabela) ---
-st.subheader(f"📊 Análise: {var_label}")
-
 if not paises_filtro:
-    # CENÁRIO 1: NENHUM PAÍS SELECIONADO -> MOSTRAR APENAS GERAL
+    # CENÁRIO 1: NENHUM PAÍS SELECIONADO -> MOSTRAR APENAS NÚMEROS
     st.subheader(f"🌍 Visão Geral: {var_label}")
     
-    # Cria uma linha única com os dados de TODO o banco de dados
+    # Criamos o DataFrame SEM a coluna 'country', apenas com os valores
     tabela_final = pd.DataFrame({
-        'country': ['MÉDIA GERAL (Todos os Países)'],
         'count': [df[var_coluna].count()],
         'mean': [df[var_coluna].mean()],
         'std': [df[var_coluna].std()],
@@ -74,19 +71,21 @@ if not paises_filtro:
     })
 
 else:
-    # CENÁRIO 2: PAÍSES SELECIONADOS -> MOSTRAR DETALHE DELES
+    # CENÁRIO 2: PAÍSES SELECIONADOS -> MOSTRAR NOMES DOS PAÍSES
     st.subheader(f"📍 Detalhamento por País: {var_label}")
     
-    # Filtra e agrupa apenas os selecionados
     df_filtered = df[df['country'].isin(paises_filtro)]
     
+    # Aqui mantemos a coluna 'country' (que vira index no groupby)
     tabela_final = df_filtered.groupby('country')[var_coluna].agg(
         ['count', 'mean', 'std', 'min', 'max', 'median']
     ).reset_index()
     
     tabela_final = tabela_final.sort_values(by='mean', ascending=False)
 
-# EXIBIÇÃO DA TABELA (A mesma formatação serve para os dois casos)
+# EXIBIÇÃO DA TABELA
+# O Streamlit é inteligente: se a coluna "country" não existir (Cenário 1),
+# ele ignora a configuração dela e mostra só os números.
 st.dataframe(
     tabela_final,
     use_container_width=True,
