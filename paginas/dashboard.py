@@ -8,9 +8,9 @@ st.set_page_config(page_title="Análise Descritiva", layout="wide")
 # 2. Carregamento de Dados
 @st.cache_data
 def carregar_dados():
-    df = pd.read_csv("dataframe/dados_AS2_mensal.csv")
-    df['mes'] = pd.to_datetime(df['mes'])
-    df['Data_Dia'] = df['mes'].dt.date
+    df = pd.read_csv("dataframe/dados_AS2_semanal.csv")
+    df['semana'] = pd.to_datetime(df['semana'])
+    df['Data_Dia'] = df['semana'].dt.date
     return df
 
 df = carregar_dados()
