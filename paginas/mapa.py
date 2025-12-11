@@ -2,27 +2,26 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import time
-import matplotlib.colors as mcolors
 
-# --- CONFIGURAÇÃO INICIAL ---
-st.header("🗺️ Mapa Climático Sazonal (Mensal)")
+# --- TÍTULO ---
+st.header("🗺️ Mapa Climático Sazonal: Comparativo")
 
-# --- CARREGAMENTO E TRATAMENTO DOS DADOS ---
+# --- CARREGAMENTO DOS DADOS ---
 @st.cache_data
 def carregar_dados_mapa():
     try:
         df = pd.read_csv("dataframe/dados_AS.csv")
         
-        # 1. Filtrar Colômbia dos dados (ela ficará sem valor, logo aparecerá a cor de fundo)
+        # 1. Filtrar Colômbia
         df = df[df['country'] != 'Colombia']
         
         # 2. Converter data
         df['last_updated'] = pd.to_datetime(df['last_updated'])
         
-        # 3. Criar coluna de MÊS (Ano-Mês) para o slider mensal
+        # 3. Criar coluna Mês/Ano (Ex: 2024-01)
         df['Mes_Ano'] = df['last_updated'].dt.strftime('%Y-%m')
         
-        # 4. Criar coluna de Estação (para o filtro)
+        # 4. Criar coluna Estação
         def get_estacao(mes):
             if mes in [12, 1, 2]: return 'Verão'
             elif mes in [3, 4, 5]: return 'Outono'
@@ -31,12 +30,10 @@ def carregar_dados_mapa():
             
         df['Estacao'] = df['last_updated'].dt.month.apply(get_estacao)
         
-        # Ordenar cronologicamente
         df = df.sort_values('last_updated')
-        
         return df
     except FileNotFoundError:
-        st.error("Arquivo 'dataframe/dados_AS.csv' não encontrado.")
+        st.error("Arquivo CSV não encontrado.")
         return pd.DataFrame()
 
 df = carregar_dados_mapa()
@@ -44,154 +41,155 @@ df = carregar_dados_mapa()
 if df.empty:
     st.stop()
 
-# --- SIDEBAR: CONFIGURAÇÕES ---
+# --- SIDEBAR ---
 st.sidebar.markdown("### ⚙️ Configurações")
 
-# Dicionário de Variáveis
 variaveis = {
     "Temperatura (°C)": "temperature_celsius",
     "Precipitação (mm)": "precip_mm",
     "Umidade (%)": "humidity",
     "Vento (km/h)": "wind_kph",
     "Pressão (in)": "pressure_in",
-    "Nuvens (%)": "cloud",
-    "Sensação Térmica (°C)": "feels_like_celsius",
-    "Índice UV": "uv_index"
-}
-
-# Cores
-cores_mapa = {
-    "temperature_celsius": "RdYlBu_r",
-    "precip_mm": "Blues",
-    "humidity": "Teal",
-    "wind_kph": "Viridis",
-    "cloud": "Greys",
-    "uv_index": "Magma",
-    "feels_like_celsius": "RdYlBu_r"
+    "Nuvens (%)": "cloud"
 }
 
 var_selecionada = st.sidebar.selectbox("Variável:", options=list(variaveis.keys()))
 coluna_dados = variaveis[var_selecionada]
-escala_cor = cores_mapa.get(coluna_dados, "Viridis")
 
-# Calcular Min/Max global para fixar a escala de cores (evita piscar na animação)
+# Definição de Cores Lógica
+if coluna_dados == "temperature_celsius":
+    escala_cor = "RdYlBu_r" # Vermelho é quente, Azul é frio
+elif coluna_dados == "precip_mm":
+    escala_cor = "Blues"    # Azul é chuva
+else:
+    escala_cor = "Viridis"
+
+# Calcular Min/Max Global para travar a escala de cores
 min_global = df[coluna_dados].min()
 max_global = df[coluna_dados].max()
 
-# --- FILTROS DE ESTAÇÃO ---
-st.subheader("📅 Filtro de Período")
+# --- 1. MAPA GERAL (COMPARATIVO) ---
+st.subheader(f"🌎 Média Geral do Período ({var_selecionada})")
 
-# Botões de Estação
+# Média de todo o período por país
+df_geral = df.groupby('country')[coluna_dados].mean().reset_index()
+
+fig_geral = px.choropleth(
+    df_geral,
+    locations="country",
+    locationmode="country names",
+    color=coluna_dados,
+    scope="south america",
+    color_continuous_scale=escala_cor,
+    range_color=[min_global, max_global], # Trava a escala
+    labels={coluna_dados: var_selecionada}
+)
+# Fundo Preto para Colômbia e bordas brancas
+fig_geral.update_geos(
+    fitbounds="locations", visible=False, showcountries=True, countrycolor="white",
+    showland=True, landcolor="black"
+)
+fig_geral.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+
+st.plotly_chart(fig_geral, use_container_width=True)
+
+st.markdown("---")
+
+# --- 2. ANIMAÇÃO NO TEMPO ---
+st.subheader(f"📅 Evolução no Tempo: {var_selecionada}")
+
+# Filtro de Estação (Botões)
 estacao_filtro = st.radio(
-    "Filtrar meses por estação:",
+    "Filtrar Estação:",
     ["Todas", "Verão", "Outono", "Inverno", "Primavera"],
     horizontal=True
 )
 
-# Aplicar Filtro no DataFrame
+# Filtra o DataFrame base
 if estacao_filtro != "Todas":
     df_filtrado = df[df['Estacao'] == estacao_filtro]
 else:
     df_filtrado = df
 
-# Obter lista de meses disponíveis após o filtro
-meses_unicos = df_filtrado['Mes_Ano'].unique()
-meses_unicos.sort() # Garantir ordem cronológica
+# Lista de meses disponíveis para o slider
+meses_unicos = sorted(df_filtrado['Mes_Ano'].unique())
 
 if len(meses_unicos) == 0:
-    st.warning("Não há dados para esta estação.")
+    st.warning("Sem dados para esta estação.")
     st.stop()
 
-# --- CONTROLES DE ANIMAÇÃO ---
-col_play, col_slider = st.columns([1, 4])
+# --- LÓGICA DE CONTROLE DA ANIMAÇÃO ---
 
-# Estado da sessão
+# Inicializar estados se não existirem
 if 'animacao_ativa' not in st.session_state:
     st.session_state.animacao_ativa = False
-if 'indice_tempo' not in st.session_state:
-    st.session_state.indice_tempo = 0
+if 'idx_mes' not in st.session_state:
+    st.session_state.idx_mes = 0
 
-# Botão Play
-with col_play:
-    # Espaço para alinhar verticalmente com o slider
-    st.write("") 
+# Se mudou o filtro de estação, reseta o índice para não dar erro
+if st.session_state.idx_mes >= len(meses_unicos):
+    st.session_state.idx_mes = 0
+
+col_btn, col_sli = st.columns([1, 4])
+
+with col_btn:
+    st.write("") # Espaçamento
     st.write("")
-    label_botao = "⏹️ Parar" if st.session_state.animacao_ativa else "▶️ Reproduzir"
+    label_botao = "⏹️ Parar" if st.session_state.animacao_ativa else "▶️ Iniciar Animação"
     if st.button(label_botao, use_container_width=True):
         st.session_state.animacao_ativa = not st.session_state.animacao_ativa
 
-# Lógica do Loop de Animação
+# Lógica do Loop (Só roda se estiver ativo)
 if st.session_state.animacao_ativa:
-    if st.session_state.indice_tempo < len(meses_unicos) - 1:
-        st.session_state.indice_tempo += 1
+    if st.session_state.idx_mes < len(meses_unicos) - 1:
+        st.session_state.idx_mes += 1
     else:
-        st.session_state.indice_tempo = 0 # Reinicia o loop
-    time.sleep(0.7) # Velocidade da animação (mais lenta para mês)
-    st.rerun()
+        st.session_state.idx_mes = 0 # Volta pro começo
+    time.sleep(0.8) # Velocidade
+    st.rerun() # Recarrega a página para atualizar o slider visualmente
 
-# Slider Manual
-with col_slider:
-    # Garante que o índice não estoure se mudarmos de filtro (ex: de Todos para Verão)
-    if st.session_state.indice_tempo >= len(meses_unicos):
-        st.session_state.indice_tempo = 0
-        
-    mes_escolhido = st.select_slider(
-        "Linha do Tempo (Mês/Ano)",
+with col_sli:
+    # O Slider agora recebe o valor do session_state
+    mes_selecionado = st.select_slider(
+        "Linha do Tempo",
         options=meses_unicos,
-        value=meses_unicos[st.session_state.indice_tempo],
-        key="slider_tempo_mapa"
+        value=meses_unicos[st.session_state.idx_mes] # <--- ISSO FAZ ELE MEXER SOZINHO
     )
-    # Sincroniza slider manual com o índice interno
-    st.session_state.indice_tempo = list(meses_unicos).index(mes_escolhido)
+    # Se o usuário mexer manualmente, atualizamos o estado interno
+    st.session_state.idx_mes = list(meses_unicos).index(mes_selecionado)
 
-# --- PROCESSAMENTO E PLOTAGEM ---
+# --- PLOT DO MAPA MENSAL ---
+# 1. Filtra dados do mês
+df_mes = df[df['Mes_Ano'] == mes_selecionado]
 
-# 1. Filtrar dados do mês escolhido
-df_mes = df[df['Mes_Ano'] == mes_escolhido]
-
-# 2. Agrupar por PAÍS (Média do mês inteiro)
+# 2. Agrupa por país
 df_mapa = df_mes.groupby('country')[coluna_dados].mean().reset_index()
 
-# 3. Gerar Mapa
 if not df_mapa.empty:
-    fig = px.choropleth(
+    fig_anim = px.choropleth(
         df_mapa,
         locations="country",
         locationmode="country names",
         color=coluna_dados,
         scope="south america",
         color_continuous_scale=escala_cor,
-        range_color=[min_global, max_global], # Escala fixa
-        title=f"Média: {var_selecionada} em {mes_escolhido} ({estacao_filtro if estacao_filtro != 'Todas' else df_mes['Estacao'].iloc[0]})",
+        range_color=[min_global, max_global], # Escala travada igual ao Geral
+        title=f"Média em: {mes_selecionado} ({df_mes['Estacao'].iloc[0]})",
         labels={coluna_dados: var_selecionada}
     )
     
-    # --- APLICANDO A COLÔMBIA PRETA ---
-    fig.update_geos(
-        fitbounds="locations", 
-        visible=False,
-        showcountries=True, 
-        countrycolor="white", # Bordas dos países brancas
-        showland=True, 
-        landcolor="black",    # <--- AQUI ESTÁ O TRUQUE! O fundo (terra sem dados) vira preto.
-        showocean=True,
-        oceancolor="#e6f2ff"  # Azulzinho claro para o mar
+    # Colômbia Preta e Visual Limpo
+    fig_anim.update_geos(
+        fitbounds="locations", visible=False, showcountries=True, countrycolor="white",
+        showland=True, landcolor="black"
     )
+    fig_anim.update_layout(margin={"r":0,"t":50,"l":0,"b":0})
     
-    fig.update_layout(
-        margin={"r":0,"t":50,"l":0,"b":0},
-        paper_bgcolor="#f9f9f9",
-        geo=dict(bgcolor= '#f9f9f9')
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # 4. Tabela de Apoio (Expander)
-    with st.expander("📊 Ver Dados Detalhados deste Mês"):
-        st.dataframe(
-            df_mapa.sort_values(coluna_dados, ascending=False).style.format({coluna_dados: "{:.2f}"}),
-            use_container_width=True
-        )
+    st.plotly_chart(fig_anim, use_container_width=True)
+
+    # Dados numéricos
+    with st.expander("Ver tabela de dados deste mês"):
+        st.dataframe(df_mapa.style.format({coluna_dados: "{:.2f}"}), use_container_width=True)
 
 else:
-    st.warning(f"Sem dados disponíveis para {mes_escolhido}")
+    st.warning(f"Sem dados para {mes_selecionado}")
