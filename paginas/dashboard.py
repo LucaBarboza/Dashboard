@@ -119,37 +119,37 @@ else:
     colunas_agrupamento = ['Data_Dia', 'country'] # Mantém a separação
     sulfixo_titulo = " (por País)"
 
-col1, col2 = st.columns(2)
+# col1, col2 = st.columns(2)
 
-with col1:
-    st.markdown("**Distribuição (Histograma)**")
-    fig_hist = px.histogram(
-        df_filtered, 
-        x=var_coluna, 
-        color=cor_grafico, # Muda dinamicamente
-        nbins=30,
-        title=f"Distribuição de {var_label}{sulfixo_titulo}",
-        opacity=0.7
-    )
-    # Se for geral, remove a legenda automática que pode ficar poluída
-    if not paises_filtro:
-        fig_hist.update_layout(showlegend=False)
+# with col1:
+#     st.markdown("**Distribuição (Histograma)**")
+#     fig_hist = px.histogram(
+#         df_filtered, 
+#         x=var_coluna, 
+#         color=cor_grafico, # Muda dinamicamente
+#         nbins=30,
+#         title=f"Distribuição de {var_label}{sulfixo_titulo}",
+#         opacity=0.7
+#     )
+#     # Se for geral, remove a legenda automática que pode ficar poluída
+#     if not paises_filtro:
+#         fig_hist.update_layout(showlegend=False)
         
-    st.plotly_chart(fig_hist, use_container_width=True)
+#     st.plotly_chart(fig_hist, use_container_width=True)
 
-with col2:
-    st.markdown("**Comparação (Boxplot)**")
-    fig_box = px.box(
-        df_filtered, 
-        x=eixo_x_box,   # Se for geral, remove o eixo X (fica um box só)
-        y=var_coluna, 
-        color=cor_grafico, 
-        title=f"Boxplot de {var_label}{sulfixo_titulo}"
-    )
-    if not paises_filtro:
-        fig_box.update_layout(showlegend=False, xaxis_title="Global")
-        
-    st.plotly_chart(fig_box, use_container_width=True)
+# with col2:
+st.markdown("**Comparação (Boxplot)**")
+fig_box = px.box(
+    df_filtered, 
+    x=eixo_x_box,   # Se for geral, remove o eixo X (fica um box só)
+    y=var_coluna, 
+    color=cor_grafico, 
+    title=f"Boxplot de {var_label}{sulfixo_titulo}"
+)
+if not paises_filtro:
+    fig_box.update_layout(showlegend=False, xaxis_title="Global")
+    
+st.plotly_chart(fig_box, use_container_width=True)
 
 # Gráfico de Linha (Série Temporal)
 st.markdown("**Evolução no Tempo (Média Diária)**")
