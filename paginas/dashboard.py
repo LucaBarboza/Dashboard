@@ -147,13 +147,15 @@ fig_box = px.box(
     title=f"Boxplot de {var_label}{sulfixo_titulo}",
     template="simple_white"
 )
+
 if not paises_filtro:
     fig_box.update_layout(showlegend=False, xaxis_title="Global")
 
 fig_box.update_layout(
-    xaxis_fixedrange=True, 
-    yaxis_fixedrange=True, 
-    legend_itemclick=False
+    xaxis=dict(fixedrange=True, color="black"), 
+    yaxis=dict(fixedrange=True, color="black"),
+    legend_itemclick=False,
+    font=dict(color="black") 
 )
 
 st.plotly_chart(
