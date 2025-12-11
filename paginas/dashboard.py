@@ -144,27 +144,31 @@ fig_box = px.box(
     x=eixo_x_box, 
     y=var_coluna, 
     color=cor_grafico, 
-    title=f"Boxplot de {var_label}{sulfixo_titulo}"
+    title=f"Boxplot de {var_label}{sulfixo_titulo}",
+    template="simple_white"
 )
+
+# Ajuste se não houver filtro de países
 if not paises_filtro:
     fig_box.update_layout(showlegend=False, xaxis_title="Global")
 
+# 2. Trava interatividade (Zoom, Pan e clique na legenda)
 fig_box.update_layout(
-    xaxis=dict(fixedrange=True),
-    yaxis=dict(fixedrange=True),
-    legend=dict(itemclick=False, itemdoubleclick=False)
+    xaxis_fixedrange=True, 
+    yaxis_fixedrange=True, 
+    legend_itemclick=False
 )
-botoes_remover = ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 
-    'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d',
-    'hoverClosestCartesian', 'hoverCompareCartesian']
 
+# 3. Exibe removendo apenas ferramentas de navegação (mantém Download)
 st.plotly_chart(
     fig_box, 
-    use_container_width=True,
+    use_container_width=True, 
     config={
-        'modeBarButtonsToRemove': botoes_remover,
         'displaylogo': False,
-        'displayModeBar': True
+        'modeBarButtonsToRemove': [
+            'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+            'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
+        ]
     }
 )
 
