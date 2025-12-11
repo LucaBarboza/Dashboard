@@ -141,15 +141,32 @@ else:
 st.markdown("**Comparação (Boxplot)**")
 fig_box = px.box(
     df_filtered, 
-    x=eixo_x_box,   # Se for geral, remove o eixo X (fica um box só)
+    x=eixo_x_box, 
     y=var_coluna, 
     color=cor_grafico, 
     title=f"Boxplot de {var_label}{sulfixo_titulo}"
 )
 if not paises_filtro:
     fig_box.update_layout(showlegend=False, xaxis_title="Global")
-    
-st.plotly_chart(fig_box, use_container_width=True)
+
+fig_box.update_layout(
+    xaxis=dict(fixedrange=True),
+    yaxis=dict(fixedrange=True),
+    legend=dict(itemclick=False, itemdoubleclick=False)
+)
+botoes_remover = ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+    'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d',
+    'hoverClosestCartesian', 'hoverCompareCartesian']
+
+st.plotly_chart(
+    fig_box, 
+    use_container_width=True,
+    config={
+        'modeBarButtonsToRemove': botoes_remover,
+        'displaylogo': False,
+        'displayModeBar': True
+    }
+)
 
 # Gráfico de Linha (Série Temporal)
 st.markdown("**Evolução no Tempo (Média Diária)**")
