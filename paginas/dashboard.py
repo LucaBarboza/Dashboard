@@ -147,19 +147,15 @@ fig_box = px.box(
     title=f"Boxplot de {var_label}{sulfixo_titulo}",
     template="simple_white"
 )
-
-# Ajuste se não houver filtro de países
 if not paises_filtro:
     fig_box.update_layout(showlegend=False, xaxis_title="Global")
 
-# 2. Trava interatividade (Zoom, Pan e clique na legenda)
 fig_box.update_layout(
     xaxis_fixedrange=True, 
     yaxis_fixedrange=True, 
     legend_itemclick=False
 )
 
-# 3. Exibe removendo apenas ferramentas de navegação (mantém Download)
 st.plotly_chart(
     fig_box, 
     use_container_width=True, 
