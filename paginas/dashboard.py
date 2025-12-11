@@ -151,16 +151,27 @@ fig_box = px.box(
 if not paises_filtro:
     fig_box.update_layout(showlegend=False, xaxis_title="Global")
 
+# --- FORÇAR PRETO ABSOLUTO ---
 fig_box.update_layout(
-    xaxis=dict(fixedrange=True, color="black"), 
-    yaxis=dict(fixedrange=True, color="black"),
+    xaxis=dict(
+        fixedrange=True,
+        tickfont=dict(color='black'),   # Cor dos números
+        title_font=dict(color='black')  # Cor do título do eixo
+    ),
+    yaxis=dict(
+        fixedrange=True,
+        tickfont=dict(color='black'),   # Cor dos números
+        title_font=dict(color='black')  # Cor do título do eixo
+    ),
     legend_itemclick=False,
-    font=dict(color="black") 
+    font=dict(color='black') # Cor geral
 )
 
+# --- EXIBIÇÃO (Com theme=None para o Streamlit não mexer nas cores) ---
 st.plotly_chart(
     fig_box, 
     use_container_width=True, 
+    theme=None,  # <--- ISSO É O IMPORTANTE. Impede o Streamlit de deixar cinza.
     config={
         'displaylogo': False,
         'modeBarButtonsToRemove': [
