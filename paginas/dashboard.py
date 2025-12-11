@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # 1. Configuração da Página
 st.set_page_config(page_title="Análise Descritiva", layout="wide")
@@ -139,17 +140,33 @@ else:
 
 # with col2:
 st.markdown("**Comparação (Boxplot)**")
-fig_box = px.box(
-    df_filtered, 
-    x=eixo_x_box,   # Se for geral, remove o eixo X (fica um box só)
-    y=var_coluna, 
-    color=cor_grafico, 
-    title=f"Boxplot de {var_label}{sulfixo_titulo}"
+sns.set_theme(style="whitegrid")
+bp, ax = plt.subplots(figsize=(10, 6))
+
+x_axis = eixo_x_box if paises_filtro else None
+hue_val = cor_grafico if paises_filtro else None
+
+sns.boxplot(
+    data=df_filtered,
+    x=x_axis,
+    y=var_coluna,
+    hue=hue_val,
+    palette="pastel",
+    ax=ax,
+    dodge=False
 )
+
+ax.set_title(f"Boxplot de {var_label}{sulfixo_titulo}", fontsize=14, fontweight='bold', pad=15)
+ax.set_ylabel(var_label)
+
 if not paises_filtro:
-    fig_box.update_layout(showlegend=False, xaxis_title="Global")
-    
-st.plotly_chart(fig_box, use_container_width=True)
+    ax.set_xlabel("Global")
+else:
+    if ax.get_legend():
+        ax.get_legend().remove()
+    ax.set_xlabel(eixo_x_box)
+sns.despine()
+st.pyplot(bp)
 
 # Gráfico de Linha (Série Temporal)
 st.markdown("**Evolução no Tempo (Média Diária)**")
