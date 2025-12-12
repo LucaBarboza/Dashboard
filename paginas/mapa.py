@@ -1,214 +1,142 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import requests
+import folium
+from folium.plugins import TimeSliderChoropleth
+from streamlit_folium import st_folium
+import branca.colormap as cm
 
 # --- TÍTULO ---
-st.header("🇧🇷 Painel Climático: Evolução Histórica")
+st.header("🇧🇷 Evolução Climática: TimeSlider (Alta Performance)")
+st.info("Este mapa processa todos os dados de uma vez. A animação roda direto no seu navegador sem travar.")
 
-# --- 1. CARREGAMENTO INTELIGENTE (CACHE + OTIMIZAÇÃO) ---
-@st.cache_data(ttl=3600, show_spinner="Carregando base de dados...")
-def carregar_dados_otimizados():
+# --- 1. CARREGAMENTO DE DADOS ---
+@st.cache_data(ttl=3600)
+def carregar_dados():
     caminhos = [
         "dataframe/clima_brasil_semanal_refinado_2015.csv",
         "clima_brasil_semanal_refinado_2015.csv"
     ]
-    
     df = None
-    for caminho in caminhos:
+    for c in caminhos:
         try:
-            # TRUQUE 1: Ler apenas as colunas necessárias (Economiza 40% de RAM)
-            cols = [
-                'semana_ref', 'state', 'temperatura_media', 
-                'chuva_media_semanal', 'umidade_media', 
-                'vento_medio', 'radiacao_media'
-            ]
-            df = pd.read_csv(caminho, usecols=cols)
+            df = pd.read_csv(c)
             break
-        except FileNotFoundError:
-            continue
-            
+        except: continue
+        
     if df is None:
-        st.error("❌ Erro: Arquivo CSV não encontrado.")
+        st.error("Erro: CSV não encontrado.")
         st.stop()
+        
+    # Converter data e criar timestamp (segundos) para o plugin do mapa
+    df['semana_ref'] = pd.to_datetime(df['semana_ref'])
+    # O TimeSlider precisa da data em "Unix Timestamp" (segundos desde 1970) convertida para string
+    df['timestamp'] = df['semana_ref'].astype(int) // 10**9
+    df['timestamp'] = df['timestamp'].astype(str)
+    
+    return df.sort_values('semana_ref')
 
-    try:
-        # TRUQUE 2: Converter tipos pesados para leves
-        df['semana_ref'] = pd.to_datetime(df['semana_ref'])
-        df['Ano'] = df['semana_ref'].dt.year
-        df['Mes_Ano'] = df['semana_ref'].dt.strftime('%Y-%m')
-        
-        # Texto repetido vira Categoria (Economiza 90% de RAM na coluna)
-        df['state'] = df['state'].astype('category')
-        
-        # Números gigantes viram float32 (Economiza 50% de RAM numérica)
-        cols_num = ['temperatura_media', 'chuva_media_semanal', 'umidade_media', 'vento_medio', 'radiacao_media']
-        for col in cols_num:
-            df[col] = pd.to_numeric(df[col], downcast='float')
-        
-        # Função Estação (Leve)
-        def get_estacao(mes):
-            if mes in [12, 1, 2]: return 'Verão'
-            elif mes in [3, 4, 5]: return 'Outono'
-            elif mes in [6, 7, 8]: return 'Inverno'
-            return 'Primavera'
-        
-        df['Estacao'] = df['semana_ref'].dt.month.map(get_estacao).astype('category')
-        
-        return df.sort_values('semana_ref')
-    except Exception as e:
-        st.error(f"Erro ao otimizar dados: {e}")
-        st.stop()
-
-# --- 2. CARREGAMENTO DO MAPA ---
 @st.cache_data(ttl=3600)
 def carregar_geojson():
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
     return requests.get(url).json()
 
-# Executa o carregamento (uma vez por hora no servidor)
-df = carregar_dados_otimizados()
-geojson_brasil = carregar_geojson()
+df = carregar_dados()
+geojson = carregar_geojson()
 
 # --- SIDEBAR ---
-st.sidebar.markdown("### ⚙️ Configurações")
-
+st.sidebar.markdown("### ⚙️ Variável")
 variaveis = {
-    "Temperatura Média (°C)": "temperatura_media",
+    "Temperatura (°C)": "temperatura_media",
     "Chuva (mm)": "chuva_media_semanal",
     "Umidade (%)": "umidade_media",
     "Vento (m/s)": "vento_medio",
-    "Radiação Solar": "radiacao_media"
+    "Radiação": "radiacao_media"
 }
-
-var_label = st.sidebar.selectbox("Variável:", list(variaveis.keys()))
+var_label = st.sidebar.selectbox("Escolha o indicador:", list(variaveis.keys()))
 var_col = variaveis[var_label]
 
-# Cores
+# Definição das cores (Branca Colormap)
 if "temperatura" in var_col:
-    escala = "RdYlBu_r"
+    # Azul -> Amarelo -> Vermelho
+    colors = ['#313695', '#4575b4', '#74add1', '#abd9e9', '#e0f3f8', '#ffffbf', '#fee090', '#fdae61', '#f46d43', '#d73027', '#a50026']
 elif "chuva" in var_col:
-    escala = "Blues"
-elif "umidade" in var_col:
-    escala = "Teal"
+    # Branco -> Azul Escuro
+    colors = ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
 else:
-    escala = "Spectral_r"
+    colors = ['#ffffe5', '#f7fcb9', '#addd8e', '#41ab5d', '#238443', '#005a32']
 
-# Limites Globais (para manter a cor consistente)
-min_g = df[var_col].min()
-max_g = df[var_col].max()
+# --- PREPARAÇÃO DO DICIONÁRIO DE ESTILOS (A Mágica do Folium) ---
+# O plugin exige um dicionário no formato: { 'ID_DO_ESTADO': { 'TIMESTAMP': {'color': '#HEX', 'opacity': 0.7} } }
 
-
-# ==============================================================================
-# PARTE 1: GRID COMPARATIVO (ESTÁTICO)
-# ==============================================================================
-st.subheader("🗓️ Comparativo Anual")
-
-estacao_filtro = st.radio(
-    "Filtrar Período:",
-    ["Média do Ano", "Verão", "Outono", "Inverno", "Primavera"],
-    horizontal=True
-)
-
-# Filtro inteligente (usando query do pandas é mais rápido)
-if estacao_filtro != "Média do Ano":
-    df_grid = df[df['Estacao'] == estacao_filtro]
-else:
-    df_grid = df
-
-# Grid de Mapas Pequenos
-anos = [2016, 2017, 2018, 2019, 2020, 2021]
-colunas = st.columns(3)
-
-for i, ano in enumerate(anos):
-    col_idx = i % 3
-    with colunas[col_idx]:
-        # Agrupamento rápido
-        df_ano = df_grid[df_grid['Ano'] == ano]
-        
-        if df_ano.empty:
-            st.info(f"{ano}: -")
-            continue
-
-        # Observed=True evita criar linhas vazias na memória
-        df_mapa = df_ano.groupby('state', observed=True)[var_col].mean().reset_index()
-        
-        fig = px.choropleth(
-            df_mapa,
-            geojson=geojson_brasil,
-            locations='state',
-            featureidkey="properties.sigla",
-            color=var_col,
-            color_continuous_scale=escala,
-            range_color=[min_g, max_g],
-            scope="south america",
-            title=f"<b>{ano}</b>"
-        )
-        fig.update_geos(fitbounds="locations", visible=False)
-        fig.update_layout(margin={"r":0,"t":30,"l":0,"b":0}, height=200, coloraxis_showscale=False)
-        st.plotly_chart(fig, use_container_width=True)
-
-# Legenda Simples (Imagem leve)
-st.caption(f"Escala: {var_label}")
-dummy = px.imshow([[min_g, max_g]], color_continuous_scale=escala)
-dummy.update_layout(height=40, margin={"r":0,"t":0,"l":0,"b":0}, coloraxis_showscale=False)
-dummy.update_traces(opacity=0, showscale=True, colorbar=dict(title=None, orientation='h', thickness=10))
-dummy.update_xaxes(visible=False); dummy.update_yaxes(visible=False)
-st.plotly_chart(dummy, use_container_width=True)
-
-st.markdown("---")
-
-# ==============================================================================
-# PARTE 2: ANIMAÇÃO LEVE (POR ANO)
-# ==============================================================================
-st.subheader("🎞️ Linha do Tempo (Player Nativo)")
-st.info("💡 Escolha um ano abaixo. A animação carrega apenas 12 meses por vez para não travar.")
-
-# Filtro de Ano (Obrigatório para performance)
-# Pegamos o último ano completo disponível como padrão
-anos_unicos = sorted(df['Ano'].unique())
-ano_padrao = 2020 if 2020 in anos_unicos else anos_unicos[-1]
-
-ano_animacao = st.select_slider("Selecione o Ano:", options=anos_unicos, value=ano_padrao)
-
-# 1. Filtrar APENAS o ano escolhido (Reduz os dados em 85%)
-df_anim = df[df['Ano'] == ano_animacao].copy()
-
-# 2. Agrupar por Mês (Reduz os dados de semanas para meses)
-df_agrupado = df_anim.groupby(['state', 'Mes_Ano'], observed=True)[var_col].mean().reset_index()
-df_agrupado = df_agrupado.sort_values('Mes_Ano')
-
-# 3. Gerar o gráfico somente se houver dados
-if not df_agrupado.empty:
-    fig_anim = px.choropleth(
-        df_agrupado,
-        geojson=geojson_brasil,
-        locations='state',
-        featureidkey="properties.sigla",
-        color=var_col,
-        # AQUI ESTÁ O SEGREDO: animation_frame cria o play nativo
-        animation_frame="Mes_Ano",
-        color_continuous_scale=escala,
-        range_color=[min_g, max_g],
-        scope="south america",
-        title=f"Evolução Mensal em {ano_animacao}",
-        hover_data={var_col:':.1f'}
-    )
-
-    fig_anim.update_geos(fitbounds="locations", visible=False)
-    fig_anim.update_layout(
-        height=600,
-        margin={"r":0,"t":50,"l":0,"b":0},
-        coloraxis_colorbar=dict(title=None, orientation="h", y=-0.1, thickness=15),
-        sliders=[{"pad": {"t": 30}}]
-    )
+@st.cache_data(show_spinner="Renderizando mapa temporal...")
+def gerar_mapa_timeslider(df_data, coluna, _geojson, lista_cores):
     
-    # Ajuste de velocidade da animação (500ms é suave)
-    # Verifica se os botões existem antes de tentar alterar (evita IndexError em anos incompletos)
-    if fig_anim.layout.updatemenus:
-        fig_anim.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 500
+    # 1. Criar a escala de cores baseada nos dados (Min/Max global)
+    min_val = df_data[coluna].min()
+    max_val = df_data[coluna].max()
+    
+    colormap = cm.LinearColormap(
+        colors=lista_cores,
+        vmin=min_val,
+        vmax=max_val,
+        caption=var_label
+    )
 
-    st.plotly_chart(fig_anim, use_container_width=True)
+    # 2. Construir o dicionário de estilos (styledict)
+    # Isso mapeia: Para o estado "SP", na data "123456789", a cor é "#FF0000"
+    styledict = {}
+    
+    # Iterar por cada estado presente no GeoJSON
+    for feature in _geojson['features']:
+        sigla = feature['properties']['sigla'] # Ex: "AC", "SP"
+        styledict[sigla] = {}
+        
+        # Filtrar dados desse estado
+        df_estado = df_data[df_data['state'] == sigla]
+        
+        for _, row in df_estado.iterrows():
+            valor = row[coluna]
+            timestamp = row['timestamp']
+            
+            # Pega a cor hexadecimal correspondente ao valor
+            cor_hex = colormap(valor)
+            
+            styledict[sigla][timestamp] = {
+                'color': cor_hex,
+                'opacity': 0.8
+            }
+    
+    return styledict, colormap
 
-else:
-    st.warning(f"Dados insuficientes para gerar animação do ano {ano_animacao}.")
+# Gerar dados do mapa
+try:
+    style_dict, colormap = gerar_mapa_timeslider(df, var_col, geojson, colors)
+
+    # --- CRIAÇÃO DO MAPA FOLIUM ---
+    m = folium.Map(
+        location=[-14.235, -51.925], # Centro do Brasil
+        zoom_start=4,
+        tiles="cartodbpositron" # Estilo de mapa leve e limpo
+    )
+
+    # Adicionar o plugin de tempo
+    # Note: feature_id_key deve apontar para onde está a sigla no GeoJSON (properties.sigla)
+    TimeSliderChoropleth(
+        data=geojson,
+        styledict=style_dict,
+        name="Evolução Temporal",
+        overlay=True,
+        control=True,
+        show=True
+    ).add_to(m)
+
+    # Adicionar a legenda de cores no mapa
+    colormap.add_to(m)
+
+    # Exibir no Streamlit
+    st_folium(m, width="100%", height=600)
+
+except Exception as e:
+    st.error(f"Erro ao gerar visualização: {e}")
+    st.info("Dica: Verifique se as siglas dos estados no CSV (coluna 'state') batem com as do GeoJSON (AC, SP, etc).")
