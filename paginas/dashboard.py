@@ -18,56 +18,59 @@ df = carregar_dados()
 
 # --- CONFIGURAÇÃO AUTOMÁTICA DE CORES (Novo Bloco) ---
 # Define a escala base para cada região (Códigos padrão IBGE: N, NE, CO, SE, S)
-paletas_pasteis = {
-    # NE: 9 tons de Amarelo (Do Creme ao Dourado Suave)
+paletas_escuras = {
+    # NE: 9 tons (Amarelo Ouro -> Laranja Escuro)
+    # Começa forte (#FDD835) para não sumir no fundo branco
     'NE': [
-        "#FFFDE7", "#FFF9C4", "#FFF59D", "#FFF176", "#FFEE58", 
-        "#FFEB3B", "#FDD835", "#FBC02D", "#F9A825"
+        "#FDD835", "#FBC02D", "#F9A825", "#F57F17", "#EF6C00", 
+        "#E65100", "#BF360C", "#D84315", "#BF360C"
     ],
     
-    # N: 7 tons de Verde (Do Menta ao Verde Folha Claro)
+    # N: 7 tons (Verde Grama -> Verde Floresta Profundo)
     'N':  [
-        "#E8F5E9", "#C8E6C9", "#A5D6A7", "#81C784", 
-        "#66BB6A", "#58D68D", "#52BE80"
+        "#66BB6A", "#4CAF50", "#43A047", "#2E7D32", 
+        "#1B5E20", "#004D40", "#00332C"
     ],
     
-    # SE: 4 tons de Azul (Do Azul Bebê ao Azul Céu)
+    # SE: 4 tons (Azul Royal -> Azul Marinho)
     'SE': [
-        "#E3F2FD", "#BBDEFB", "#90CAF9", "#64B5F6"
+        "#1E88E5", "#1976D2", "#1565C0", "#0D47A1"
     ],
     
-    # CO: 4 tons de ROSA (Do Rosa Claro ao Rosa Chiclete)
-    # Assumindo "ce" como Centro-Oeste para combinar com a paleta pastel
+    # CO: 4 tons de ROSA FORTE/MAGENTA (Pink -> Vinho Rosado)
     'CO': [
-        "#FCE4EC", "#F8BBD0", "#F48FB1", "#F06292"
+        "#EC407A", "#D81B60", "#AD1457", "#880E4F"
     ],
     
-    # S: 3 tons de Lilás/Roxo (Do Lavanda ao Orquídea)
+    # S: 3 tons (Roxo Médio -> Roxo Profundo)
     'S':  [
-        "#F3E5F5", "#E1BEE7", "#CE93D8"
+        "#AB47BC", "#7B1FA2", "#4A148C"
     ]
 }
 
 # ---------------------------------------------------------
-# LÓGICA DE APLICAÇÃO (IGUAL À ANTERIOR)
+# APLICAÇÃO (A mesma lógica de antes)
 # ---------------------------------------------------------
 
+# 1. Cor da Região (Pega o tom mais escuro da lista para representar a região)
 cores_regioes = {}
 unique_regions = df['region'].unique()
 
-# Cria cor da Região (Pega o tom médio/final da paleta)
 for reg in unique_regions:
-    lista_cores = paletas_pasteis.get(reg, ["#E0E0E0"])
+    # Se não achar a região, usa cinza escuro
+    lista_cores = paletas_escuras.get(reg, ["#424242"])
     cores_regioes[reg] = lista_cores[-1] 
 
-# Cria cor dos Estados
+# 2. Cor dos Estados (Distribui os tons)
 cores_estados = {}
 
 for regiao in unique_regions:
-    lista_cores = paletas_pasteis.get(regiao, [])
-    # Ordena estados para distribuir o gradiente
+    lista_cores = paletas_escuras.get(regiao, [])
+    
+    # Ordena estados alfabeticamente para manter consistência
     estados_da_regiao = sorted(df[df['region'] == regiao]['state'].unique())
     
+    # Atribui cor a cor
     for estado, cor in zip(estados_da_regiao, lista_cores):
         cores_estados[estado] = cor
 
