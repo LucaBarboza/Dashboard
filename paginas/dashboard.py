@@ -18,54 +18,59 @@ df = carregar_dados()
 
 # --- CONFIGURAÇÃO AUTOMÁTICA DE CORES (Novo Bloco) ---
 # Define a escala base para cada região (Códigos padrão IBGE: N, NE, CO, SE, S)
-paletas_customizadas = {
-    # NE: 9 estados (Amarelos)
-    'NE': ["#FFF59D", "#FFF176", "#FFEE58", "#FFEB3B", "#FDD835", "#FBC02D", "#F9A825", "#F57F17", "#EF6C00"],
+paletas_pasteis = {
+    # NE: 9 tons de Amarelo (Do Creme ao Dourado Suave)
+    'NE': [
+        "#FFFDE7", "#FFF9C4", "#FFF59D", "#FFF176", "#FFEE58", 
+        "#FFEB3B", "#FDD835", "#FBC02D", "#F9A825"
+    ],
     
-    # N: 7 estados (Verdes)
-    'N':  ["#A5D6A7", "#81C784", "#66BB6A", "#4CAF50", "#43A047", "#2E7D32", "#1B5E20"],
+    # N: 7 tons de Verde (Do Menta ao Verde Folha Claro)
+    'N':  [
+        "#E8F5E9", "#C8E6C9", "#A5D6A7", "#81C784", 
+        "#66BB6A", "#58D68D", "#52BE80"
+    ],
     
-    # SE: 4 estados (Azuis)
-    'SE': ["#90CAF9", "#42A5F5", "#1E88E5", "#0D47A1"],
+    # SE: 4 tons de Azul (Do Azul Bebê ao Azul Céu)
+    'SE': [
+        "#E3F2FD", "#BBDEFB", "#90CAF9", "#64B5F6"
+    ],
     
-    # CO: 4 unidades (Terrosos/Vermelhos)
-    'CO': ["#FFAB91", "#FF7043", "#D84315", "#BF360C"],
+    # CO: 4 tons de ROSA (Do Rosa Claro ao Rosa Chiclete)
+    # Assumindo "ce" como Centro-Oeste para combinar com a paleta pastel
+    'CO': [
+        "#FCE4EC", "#F8BBD0", "#F48FB1", "#F06292"
+    ],
     
-    # S: 3 estados (Roxos)
-    'S':  ["#CE93D8", "#8E24AA", "#4A148C"]
+    # S: 3 tons de Lilás/Roxo (Do Lavanda ao Orquídea)
+    'S':  [
+        "#F3E5F5", "#E1BEE7", "#CE93D8"
+    ]
 }
 
 # ---------------------------------------------------------
+# LÓGICA DE APLICAÇÃO (IGUAL À ANTERIOR)
+# ---------------------------------------------------------
 
-# 2. Cria a cor fixa da Região
-# Lógica: Pega a última cor da lista (índice -1) que é a mais forte/escura para representar a região inteira.
 cores_regioes = {}
-
 unique_regions = df['region'].unique()
 
+# Cria cor da Região (Pega o tom médio/final da paleta)
 for reg in unique_regions:
-    # Pega a lista da região, se não achar usa uma lista cinza de fallback
-    lista_cores = paletas_customizadas.get(reg, ["#9E9E9E", "#616161"])
-    
-    # Define a cor da região como a mais forte da paleta
+    lista_cores = paletas_pasteis.get(reg, ["#E0E0E0"])
     cores_regioes[reg] = lista_cores[-1] 
 
-
-# 3. Cria os tons para os Estados
-# Lógica: Como temos o número exato de cores para o número de estados, usamos zip()
+# Cria cor dos Estados
 cores_estados = {}
 
 for regiao in unique_regions:
-    lista_cores = paletas_customizadas.get(regiao, [])
-    
-    # Pega os estados dessa região ordenados alfabeticamente
+    lista_cores = paletas_pasteis.get(regiao, [])
+    # Ordena estados para distribuir o gradiente
     estados_da_regiao = sorted(df[df['region'] == regiao]['state'].unique())
     
-    # Verificação de segurança: se o número de estados bater com o número de cores
-    # O zip vai parar no menor tamanho entre as duas listas
     for estado, cor in zip(estados_da_regiao, lista_cores):
         cores_estados[estado] = cor
-        
+
 # --- TÍTULO ---
 st.title("Dashboard Climático")
 
