@@ -192,7 +192,6 @@ df = carregar_dados()
 st.title("Dashboard Climático")
 
 # --- CONFIGURAÇÃO (EM CIMA DA PÁGINA) ---
-# Organizando Variable e Região na mesma linha para economizar espaço
 col_var, col_reg = st.columns([1, 2])
 
 cols_numericas = {
@@ -220,11 +219,11 @@ with col_reg:
 if regioes_sel:
     df_regiao = df[df['region'].isin(regioes_sel)]
 else:
-    df_regiao = df[df['region'].isin([])] # Zera se nada selecionado
+    df_regiao = df[df['region'].isin([])]
 
 st.markdown("---")
 
-# --- VISUALIZAÇÃO (ABAS) ---
+# --- ABAS ---
 if df_regiao.empty:
     st.warning("⚠️ Nenhuma região selecionada acima.")
 else:
@@ -233,33 +232,30 @@ else:
     # === ABA 1: ANÁLISE POR REGIÃO ===
     with tab_reg:
         st.subheader(f"Análise Regional: {var_label}")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**Distribuição (Boxplot)**")
-            fig_box_reg = px.box(
-                df_regiao, 
-                x="region", 
-                y=var_coluna, 
-                color="region", 
-                points="outliers"
-            )
-            st.plotly_chart(fig_box_reg, use_container_width=True)
+
+        # === Boxplot ===
+        st.markdown("**Distribuição (Boxplot)**")
+        fig_box_reg = px.box(
+            df_regiao, 
+            x="region", 
+            y=var_coluna, 
+            color="region", 
+            points="outliers"
+        )
+        st.plotly_chart(fig_box_reg, use_container_width=True)
             
-        with col2:
-            st.markdown("**Evolução Temporal (Média das Regiões)**")
-            # Agrupa por dia e região
-            df_line_reg = df_regiao.groupby(['Data_Dia', 'region'])[var_coluna].mean().reset_index()
-            
-            fig_line_reg = px.line(
-                df_line_reg, 
-                x="Data_Dia", 
-                y=var_coluna, 
-                color="region",
-                markers=True
-            )
-            st.plotly_chart(fig_line_reg, use_container_width=True)
+        # === Linha ===
+        st.markdown("**Evolução Temporal (Média das Regiões)**")
+        df_line_reg = df_regiao.groupby(['Data_Dia', 'region'])[var_coluna].mean().reset_index()
+        
+        fig_line_reg = px.line(
+            df_line_reg, 
+            x="Data_Dia", 
+            y=var_coluna, 
+            color="region",
+            markers=True
+        )
+        st.plotly_chart(fig_line_reg, use_container_width=True)
 
     # === ABA 2: ANÁLISE POR ESTADO ===
     with tab_est:
