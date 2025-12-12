@@ -35,8 +35,8 @@ cols_numericas = {
     'Chuva Média (mm)': 'chuva_media_acumulada', # media semanal da soma de chuva em todas as estações
     'Temperatura Média (C)': 'temperatura_media',
     'Umidade Média (%)': 'umidade_media', 
-    'Vento Médio': 'vento_medio', 
-    'Pressão Média': 'pressao_media',
+    'Vento Médio': 'vento_medio_kmh', 
+    'Pressão Média': 'pressao_media_inHg',
     'Radiação Média': 'radiacao_media'
 }
 
