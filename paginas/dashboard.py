@@ -18,36 +18,54 @@ df = carregar_dados()
 
 # --- CONFIGURAÇÃO AUTOMÁTICA DE CORES (Novo Bloco) ---
 # Define a escala base para cada região (Códigos padrão IBGE: N, NE, CO, SE, S)
-escalas_regiao = {
-    'N': px.colors.sequential.Blugrn,
-    'NE': px.colors.sequential.Reds,
-    'CO': px.colors.sequential.Oranges,
-    'SE': px.colors.sequential.ice,
-    'S': px.colors.sequential.Sunsetdark
+paletas_customizadas = {
+    # NE: 9 estados (Amarelos)
+    'NE': ["#FFF59D", "#FFF176", "#FFEE58", "#FFEB3B", "#FDD835", "#FBC02D", "#F9A825", "#F57F17", "#EF6C00"],
+    
+    # N: 7 estados (Verdes)
+    'N':  ["#A5D6A7", "#81C784", "#66BB6A", "#4CAF50", "#43A047", "#2E7D32", "#1B5E20"],
+    
+    # SE: 4 estados (Azuis)
+    'SE': ["#90CAF9", "#42A5F5", "#1E88E5", "#0D47A1"],
+    
+    # CO: 4 unidades (Terrosos/Vermelhos)
+    'CO': ["#FFAB91", "#FF7043", "#D84315", "#BF360C"],
+    
+    # S: 3 estados (Roxos)
+    'S':  ["#CE93D8", "#8E24AA", "#4A148C"]
 }
 
-# 1. Cria a cor fixa da Região (pega um tom forte da escala)
+# ---------------------------------------------------------
+
+# 2. Cria a cor fixa da Região
+# Lógica: Pega a última cor da lista (índice -1) que é a mais forte/escura para representar a região inteira.
 cores_regioes = {}
-for reg in df['region'].unique():
-    # Tenta pegar a escala, se não achar usa cinza (segurança contra nomes diferentes)
-    escala = escalas_regiao.get(reg, px.colors.sequential.Greys)
-    cores_regioes[reg] = escala[-3] 
 
-# 2. Cria os tons para os Estados
+unique_regions = df['region'].unique()
+
+for reg in unique_regions:
+    # Pega a lista da região, se não achar usa uma lista cinza de fallback
+    lista_cores = paletas_customizadas.get(reg, ["#9E9E9E", "#616161"])
+    
+    # Define a cor da região como a mais forte da paleta
+    cores_regioes[reg] = lista_cores[-1] 
+
+
+# 3. Cria os tons para os Estados
+# Lógica: Como temos o número exato de cores para o número de estados, usamos zip()
 cores_estados = {}
-for regiao in df['region'].unique():
-    escala = escalas_regiao.get(regiao, px.colors.sequential.Greys)
-    
-    # Pega os estados dessa região ordenados
-    estados_da_regiao = sorted(df[df['region'] == regiao]['state'].unique())
-    qtd = len(estados_da_regiao)
-    
-    # Gera tons diferentes dentro da escala (começando de 0.3 para não ficar muito claro)
-    if qtd > 0:
-        tons = px.colors.sample_colorscale(escala, [0.3 + 0.7 * i/(qtd-1 or 1) for i in range(qtd)])
-        for estado, cor in zip(estados_da_regiao, tons):
-            cores_estados[estado] = cor
 
+for regiao in unique_regions:
+    lista_cores = paletas_customizadas.get(regiao, [])
+    
+    # Pega os estados dessa região ordenados alfabeticamente
+    estados_da_regiao = sorted(df[df['region'] == regiao]['state'].unique())
+    
+    # Verificação de segurança: se o número de estados bater com o número de cores
+    # O zip vai parar no menor tamanho entre as duas listas
+    for estado, cor in zip(estados_da_regiao, lista_cores):
+        cores_estados[estado] = cor
+        
 # --- TÍTULO ---
 st.title("Dashboard Climático")
 
