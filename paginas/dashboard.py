@@ -188,25 +188,12 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# --- BARRA LATERAL (FILTRO GLOBAL) ---
-st.sidebar.header("Filtro Global")
-
-# Filtro de Região (Afeta tudo)
-regioes_disponiveis = sorted(df['region'].unique().astype(str))
-regioes_sel = st.sidebar.multiselect(
-    "Selecione as Regiões:", 
-    regioes_disponiveis, 
-    default=regioes_disponiveis
-)
-
-# Filtra o DF principal pelas regiões
-if regioes_sel:
-    df_regiao = df[df['region'].isin(regioes_sel)]
-else:
-    df_regiao = df[df['region'].isin([])] # Zera se nada selecionado
-
-# --- TÍTULO E VARIÁVEL ---
+# --- TÍTULO ---
 st.title("Dashboard Climático")
+
+# --- CONFIGURAÇÃO (EM CIMA DA PÁGINA) ---
+# Organizando Variable e Região na mesma linha para economizar espaço
+col_var, col_reg = st.columns([1, 2])
 
 cols_numericas = {
     'Chuva Média (mm)': 'chuva_media_acumulada',
@@ -217,22 +204,35 @@ cols_numericas = {
     'Radiação Média (Kj/m²)': 'radiacao_media'
 }
 
-col_var, col_vazia = st.columns([1, 2])
 with col_var:
-    var_label = st.selectbox("Escolha a variável para analisar:", options=cols_numericas.keys())
-var_coluna = cols_numericas[var_label]
+    var_label = st.selectbox("1. Escolha a Variável:", options=cols_numericas.keys())
+    var_coluna = cols_numericas[var_label]
+
+with col_reg:
+    regioes_disponiveis = sorted(df['region'].unique().astype(str))
+    regioes_sel = st.multiselect(
+        "2. Filtre as Regiões (Impacta todas as abas):", 
+        regioes_disponiveis, 
+        default=regioes_disponiveis
+    )
+
+# Lógica de Filtragem Principal
+if regioes_sel:
+    df_regiao = df[df['region'].isin(regioes_sel)]
+else:
+    df_regiao = df[df['region'].isin([])] # Zera se nada selecionado
 
 st.markdown("---")
 
+# --- VISUALIZAÇÃO (ABAS) ---
 if df_regiao.empty:
-    st.warning("⚠️ Nenhuma região selecionada. Use a barra lateral para selecionar.")
+    st.warning("⚠️ Nenhuma região selecionada acima.")
 else:
-    # --- ABAS DE NAVEGAÇÃO ---
-    tab_reg, tab_est = st.tabs(["🌍 Por Região", "📍 Por Estado"])
+    tab_reg, tab_est = st.tabs(["🌍 Visão por Região", "📍 Visão por Estado"])
 
     # === ABA 1: ANÁLISE POR REGIÃO ===
     with tab_reg:
-        st.subheader(f"Visão Regional: {var_label}")
+        st.subheader(f"Análise Regional: {var_label}")
         
         col1, col2 = st.columns(2)
         
@@ -248,7 +248,7 @@ else:
             st.plotly_chart(fig_box_reg, use_container_width=True)
             
         with col2:
-            st.markdown("**Evolução Temporal (Comparativo Regional)**")
+            st.markdown("**Evolução Temporal (Média das Regiões)**")
             # Agrupa por dia e região
             df_line_reg = df_regiao.groupby(['Data_Dia', 'region'])[var_coluna].mean().reset_index()
             
@@ -263,12 +263,12 @@ else:
 
     # === ABA 2: ANÁLISE POR ESTADO ===
     with tab_est:
-        st.subheader(f"Visão Estadual: {var_label}")
+        st.subheader(f"Análise Estadual: {var_label}")
         
-        # Filtro de Estado (LOCAL - Só existe dentro desta aba)
+        # Filtro de Estado (LOCAL - Aparece apenas aqui)
         estados_disponiveis = sorted(df_regiao['state'].unique().astype(str))
         estados_sel = st.multiselect(
-            "Filtrar Estados para Comparação:", 
+            "3. Filtre os Estados (Opcional):", 
             estados_disponiveis, 
             default=estados_disponiveis
         )
@@ -282,31 +282,37 @@ else:
         col_est1, col_est2 = st.columns(2)
         
         with col_est1:
-            st.markdown("**Distribuição (Boxplot)**")
-            fig_box_est = px.box(
-                df_estado, 
-                x="state", 
-                y=var_coluna, 
-                color="region", # Mantém cor da região para contexto
-                title=f"Distribuição ({len(df_estado['state'].unique())} estados)"
-            )
-            fig_box_est.update_layout(xaxis={'categoryorder':'total descending'})
-            st.plotly_chart(fig_box_est, use_container_width=True)
+            if not df_estado.empty:
+                st.markdown("**Comparativo de Distribuição**")
+                fig_box_est = px.box(
+                    df_estado, 
+                    x="state", 
+                    y=var_coluna, 
+                    color="region", # Mantém cor da região para referência
+                    title=f"Distribuição"
+                )
+                fig_box_est.update_layout(xaxis={'categoryorder':'total descending'})
+                st.plotly_chart(fig_box_est, use_container_width=True)
+            else:
+                st.info("Selecione estados para ver o boxplot.")
         
         with col_est2:
-            st.markdown("**Evolução Temporal (Comparativo Estadual)**")
-            # Agrupa por dia e estado para garantir linhas limpas
-            df_line_est = df_estado.groupby(['Data_Dia', 'state'])[var_coluna].mean().reset_index()
-            
-            fig_line_est = px.line(
-                df_line_est,
-                x="Data_Dia",
-                y=var_coluna,
-                color="state", 
-                markers=True,
-                title=f"Evolução ({len(df_estado['state'].unique())} estados)"
-            )
-            st.plotly_chart(fig_line_est, use_container_width=True)
+            if not df_estado.empty:
+                st.markdown("**Comparativo Temporal**")
+                # Agrupa por dia e estado
+                df_line_est = df_estado.groupby(['Data_Dia', 'state'])[var_coluna].mean().reset_index()
+                
+                fig_line_est = px.line(
+                    df_line_est,
+                    x="Data_Dia",
+                    y=var_coluna,
+                    color="state", 
+                    markers=True,
+                    title=f"Evolução"
+                )
+                st.plotly_chart(fig_line_est, use_container_width=True)
+            else:
+                st.info("Selecione estados para ver a evolução.")
         
         st.markdown("---")
         
@@ -317,7 +323,11 @@ else:
         
         with col_sel:
             # Lista apenas os estados que passaram no filtro da região
-            estado_destaque = st.selectbox("Selecione para destacar:", estados_disponiveis)
+            estado_destaque = st.selectbox(
+                "Selecione um estado para destacar:", 
+                estados_disponiveis,
+                index=0 if estados_disponiveis else None
+            )
         
         with col_graph:
             if estado_destaque:
