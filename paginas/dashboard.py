@@ -131,12 +131,10 @@ if not estados_filtro:
 # --- FORÇAR PRETO ABSOLUTO ---
 fig_box.update_layout(
     xaxis=dict(
-        fixedrange=True,
-        tickfont=dict(color='black'),   
+        fixedrange=True
     ),
     yaxis=dict(
-        fixedrange=True,
-        tickfont=dict(color='black'),   
+        fixedrange=True
     ),
     showlegend=False
 )
