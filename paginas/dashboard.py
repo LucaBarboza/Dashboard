@@ -306,8 +306,8 @@ else:
                     ]
                 }
             )
-            else:
-                st.info("Selecione estados para ver o boxplot.")
+        else:
+            st.info("Selecione estados para ver o boxplot.")
         
         # Destaque Individual
         st.markdown("**🔍 Detalhe Individual (Foco em 1 Estado)**")
