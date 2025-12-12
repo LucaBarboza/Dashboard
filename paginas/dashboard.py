@@ -22,7 +22,7 @@ escalas_regiao = {
     'N': px.colors.sequential.Blugrn,
     'NE': px.colors.sequential.Reds,
     'CO': px.colors.sequential.Oranges,
-    'SE': px.colors.sequential.Ice,
+    'SE': px.colors.sequential.ice,
     'S': px.colors.sequential.Sunsetdark
 }
 
