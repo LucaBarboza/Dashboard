@@ -85,7 +85,7 @@ else:
 st.dataframe(
     tabela_final,
     use_container_width=True,
-    height=800,
+    height=900,
     hide_index=True,
     column_config={
         "state": st.column_config.TextColumn("Estado", width="large"), # Adaptação de rótulo
