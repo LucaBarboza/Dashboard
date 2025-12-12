@@ -188,51 +188,26 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# --- TÍTULO E FILTROS GLOBAIS (TOPO DA PÁGINA) ---
+# --- BARRA LATERAL (FILTRO GLOBAL) ---
+st.sidebar.header("Filtro Global")
+
+# Filtro de Região (Afeta tudo)
+regioes_disponiveis = sorted(df['region'].unique().astype(str))
+regioes_sel = st.sidebar.multiselect(
+    "Selecione as Regiões:", 
+    regioes_disponiveis, 
+    default=regioes_disponiveis
+)
+
+# Filtra o DF principal pelas regiões
+if regioes_sel:
+    df_regiao = df[df['region'].isin(regioes_sel)]
+else:
+    df_regiao = df[df['region'].isin([])] # Zera se nada selecionado
+
+# --- TÍTULO E VARIÁVEL ---
 st.title("Dashboard Climático")
 
-with st.container():
-    st.subheader("Filtros Globais")
-    col_reg, col_est = st.columns(2)
-
-    # 1. Filtro de Região
-    with col_reg:
-        regioes_disponiveis = sorted(df['region'].unique().astype(str))
-        regioes_sel = st.multiselect(
-            "1º Selecione as Regiões:", 
-            regioes_disponiveis, 
-            default=regioes_disponiveis
-        )
-
-    # Filtragem em Cascata
-    if regioes_sel:
-        df_filtrado = df[df['region'].isin(regioes_sel)]
-    else:
-        df_filtrado = df[df['region'].isin([])] # Zera se nada selecionado
-
-    # 2. Filtro de Estado (Depende da Região)
-    with col_est:
-        # Pega estados apenas das regiões filtradas
-        estados_disponiveis = sorted(df_filtrado['state'].unique().astype(str))
-        estados_sel = st.multiselect(
-            "2º Selecione os Estados (Opcional):", 
-            estados_disponiveis, 
-            default=[] # Padrão vazio para mostrar visão Regional primeiro (menos poluído)
-        )
-
-    # Lógica de Modo de Visualização
-    if estados_sel:
-        # Se escolheu estados, filtra por eles e ativa modo ESTADUAL
-        df_visualizacao = df_filtrado[df_filtrado['state'].isin(estados_sel)]
-        modo_analise = "Estadual"
-    else:
-        # Se não escolheu estados, mantém todos da região e ativa modo REGIONAL
-        df_visualizacao = df_filtrado
-        modo_analise = "Regional"
-
-st.markdown("---")
-
-# --- SELEÇÃO DE VARIÁVEL ---
 cols_numericas = {
     'Chuva Média (mm)': 'chuva_media_acumulada',
     'Temperatura Média (C)': 'temperatura_media',
@@ -242,104 +217,120 @@ cols_numericas = {
     'Radiação Média (Kj/m²)': 'radiacao_media'
 }
 
-var_label = st.selectbox("Escolha a variável para analisar:", options=cols_numericas.keys())
+col_var, col_vazia = st.columns([1, 2])
+with col_var:
+    var_label = st.selectbox("Escolha a variável para analisar:", options=cols_numericas.keys())
 var_coluna = cols_numericas[var_label]
 
 st.markdown("---")
 
-if df_visualizacao.empty:
-    st.warning("⚠️ Nenhum dado disponível. Selecione ao menos uma Região acima.")
+if df_regiao.empty:
+    st.warning("⚠️ Nenhuma região selecionada. Use a barra lateral para selecionar.")
+else:
+    # --- ABAS DE NAVEGAÇÃO ---
+    tab_reg, tab_est = st.tabs(["🌍 Por Região", "📍 Por Estado"])
 
-# --- VISUALIZAÇÃO: MODO REGIONAL (Se nenhum estado específico for selecionado) ---
-elif modo_analise == "Regional":
-    st.subheader(f"🌍 Visão Regional: {var_label}")
-    st.caption("*Exibindo dados agregados por Região. Para ver detalhes, selecione Estados no filtro acima.*")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("**Distribuição (Boxplot)**")
-        fig_box = px.box(
-            df_visualizacao, 
-            x="region", 
-            y=var_coluna, 
-            color="region", 
-            points="outliers"
-        )
-        st.plotly_chart(fig_box, use_container_width=True)
+    # === ABA 1: ANÁLISE POR REGIÃO ===
+    with tab_reg:
+        st.subheader(f"Visão Regional: {var_label}")
         
-    with col2:
-        st.markdown("**Evolução Temporal Comparativa**")
-        # Agrupa por dia e região
-        df_line = df_visualizacao.groupby(['Data_Dia', 'region'])[var_coluna].mean().reset_index()
+        col1, col2 = st.columns(2)
         
-        fig_line = px.line(
-            df_line, 
-            x="Data_Dia", 
-            y=var_coluna, 
-            color="region",
-            markers=True
-        )
-        st.plotly_chart(fig_line, use_container_width=True)
-
-    with st.expander("Ver Estatísticas das Regiões"):
-        st.dataframe(df_visualizacao.groupby('region')[var_coluna].describe(), use_container_width=True)
-
-# --- VISUALIZAÇÃO: MODO ESTADUAL (Se estados forem selecionados) ---
-elif modo_analise == "Estadual":
-    st.subheader(f"📍 Visão Estadual: {var_label}")
-    
-    col_est1, col_est2 = st.columns(2)
-    
-    with col_est1:
-        st.markdown("**Comparativo de Distribuição**")
-        fig_box_est = px.box(
-            df_visualizacao, 
-            x="state", 
-            y=var_coluna, 
-            color="region", # Cor da região para contexto
-            title=f"Distribuição ({len(estados_sel)} estados selecionados)"
-        )
-        fig_box_est.update_layout(xaxis={'categoryorder':'total descending'})
-        st.plotly_chart(fig_box_est, use_container_width=True)
-    
-    with col_est2:
-        st.markdown("**Evolução Temporal Comparativa**")
-        # Agrupa por dia e estado
-        df_line_est = df_visualizacao.groupby(['Data_Dia', 'state'])[var_coluna].mean().reset_index()
-        
-        fig_line_est = px.line(
-            df_line_est,
-            x="Data_Dia",
-            y=var_coluna,
-            color="state", 
-            markers=True,
-            title=f"Evolução ({len(estados_sel)} estados selecionados)"
-        )
-        st.plotly_chart(fig_line_est, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Destaque Individual (Foco)
-    st.markdown("**🔍 Detalhe Individual (Foco em 1 Estado)**")
-    
-    col_sel, col_graph = st.columns([1, 3])
-    
-    with col_sel:
-        # Permite escolher apenas entre os estados já filtrados
-        estado_destaque = st.selectbox("Selecione para destacar:", sorted(estados_sel))
-    
-    with col_graph:
-        if estado_destaque:
-            df_destaque = df_visualizacao[df_visualizacao['state'] == estado_destaque]
-            df_line_dest = df_destaque.groupby('Data_Dia')[var_coluna].mean().reset_index()
+        with col1:
+            st.markdown("**Distribuição (Boxplot)**")
+            fig_box_reg = px.box(
+                df_regiao, 
+                x="region", 
+                y=var_coluna, 
+                color="region", 
+                points="outliers"
+            )
+            st.plotly_chart(fig_box_reg, use_container_width=True)
             
-            fig_dest = px.line(
-                df_line_dest, 
+        with col2:
+            st.markdown("**Evolução Temporal (Comparativo Regional)**")
+            # Agrupa por dia e região
+            df_line_reg = df_regiao.groupby(['Data_Dia', 'region'])[var_coluna].mean().reset_index()
+            
+            fig_line_reg = px.line(
+                df_line_reg, 
                 x="Data_Dia", 
                 y=var_coluna, 
-                markers=True,
-                title=f"Evolução Isolada: {estado_destaque}"
+                color="region",
+                markers=True
             )
-            fig_dest.update_traces(line_color='#FF4B4B', line_width=3)
-            st.plotly_chart(fig_dest, use_container_width=True)
+            st.plotly_chart(fig_line_reg, use_container_width=True)
+
+    # === ABA 2: ANÁLISE POR ESTADO ===
+    with tab_est:
+        st.subheader(f"Visão Estadual: {var_label}")
+        
+        # Filtro de Estado (LOCAL - Só existe dentro desta aba)
+        estados_disponiveis = sorted(df_regiao['state'].unique().astype(str))
+        estados_sel = st.multiselect(
+            "Filtrar Estados para Comparação:", 
+            estados_disponiveis, 
+            default=estados_disponiveis
+        )
+        
+        # Cria DF específico para esta aba
+        if estados_sel:
+            df_estado = df_regiao[df_regiao['state'].isin(estados_sel)]
+        else:
+            df_estado = df_regiao
+            
+        col_est1, col_est2 = st.columns(2)
+        
+        with col_est1:
+            st.markdown("**Distribuição (Boxplot)**")
+            fig_box_est = px.box(
+                df_estado, 
+                x="state", 
+                y=var_coluna, 
+                color="region", # Mantém cor da região para contexto
+                title=f"Distribuição ({len(df_estado['state'].unique())} estados)"
+            )
+            fig_box_est.update_layout(xaxis={'categoryorder':'total descending'})
+            st.plotly_chart(fig_box_est, use_container_width=True)
+        
+        with col_est2:
+            st.markdown("**Evolução Temporal (Comparativo Estadual)**")
+            # Agrupa por dia e estado para garantir linhas limpas
+            df_line_est = df_estado.groupby(['Data_Dia', 'state'])[var_coluna].mean().reset_index()
+            
+            fig_line_est = px.line(
+                df_line_est,
+                x="Data_Dia",
+                y=var_coluna,
+                color="state", 
+                markers=True,
+                title=f"Evolução ({len(df_estado['state'].unique())} estados)"
+            )
+            st.plotly_chart(fig_line_est, use_container_width=True)
+        
+        st.markdown("---")
+        
+        # Destaque Individual
+        st.markdown("**🔍 Detalhe Individual (Foco em 1 Estado)**")
+        
+        col_sel, col_graph = st.columns([1, 3])
+        
+        with col_sel:
+            # Lista apenas os estados que passaram no filtro da região
+            estado_destaque = st.selectbox("Selecione para destacar:", estados_disponiveis)
+        
+        with col_graph:
+            if estado_destaque:
+                df_destaque = df_regiao[df_regiao['state'] == estado_destaque]
+                # Agrupa para garantir unicidade temporal
+                df_line_dest = df_destaque.groupby('Data_Dia')[var_coluna].mean().reset_index()
+                
+                fig_dest = px.line(
+                    df_line_dest, 
+                    x="Data_Dia", 
+                    y=var_coluna, 
+                    markers=True,
+                    title=f"Evolução Isolada: {estado_destaque}"
+                )
+                fig_dest.update_traces(line_color='#FF4B4B', line_width=3) 
+                st.plotly_chart(fig_dest, use_container_width=True)
