@@ -247,7 +247,7 @@ else:
         # === Linha ===
         st.markdown("**Evolução Temporal (Média das Regiões)**")
         df_line_reg = df_regiao.groupby(['Data_Dia', 'region'])[var_coluna].mean().reset_index()
-        
+
         fig_line_reg = px.line(
             df_line_reg, 
             x="Data_Dia", 
@@ -261,56 +261,32 @@ else:
     with tab_est:
         st.subheader(f"Análise Estadual: {var_label}")
         
-        # Filtro de Estado (LOCAL - Aparece apenas aqui)
+        # Filtro de Estado
         estados_disponiveis = sorted(df_regiao['state'].unique().astype(str))
         estados_sel = st.multiselect(
             "3. Filtre os Estados (Opcional):", 
             estados_disponiveis, 
             default=estados_disponiveis
         )
-        
-        # Cria DF específico para esta aba
         if estados_sel:
             df_estado = df_regiao[df_regiao['state'].isin(estados_sel)]
         else:
             df_estado = df_regiao
-            
-        col_est1, col_est2 = st.columns(2)
         
-        with col_est1:
-            if not df_estado.empty:
-                st.markdown("**Comparativo de Distribuição**")
-                fig_box_est = px.box(
-                    df_estado, 
-                    x="state", 
-                    y=var_coluna, 
-                    color="region", # Mantém cor da região para referência
-                    title=f"Distribuição"
-                )
-                fig_box_est.update_layout(xaxis={'categoryorder':'total descending'})
-                st.plotly_chart(fig_box_est, use_container_width=True)
-            else:
-                st.info("Selecione estados para ver o boxplot.")
-        
-        with col_est2:
-            if not df_estado.empty:
-                st.markdown("**Comparativo Temporal**")
-                # Agrupa por dia e estado
-                df_line_est = df_estado.groupby(['Data_Dia', 'state'])[var_coluna].mean().reset_index()
-                
-                fig_line_est = px.line(
-                    df_line_est,
-                    x="Data_Dia",
-                    y=var_coluna,
-                    color="state", 
-                    markers=True,
-                    title=f"Evolução"
-                )
-                st.plotly_chart(fig_line_est, use_container_width=True)
-            else:
-                st.info("Selecione estados para ver a evolução.")
-        
-        st.markdown("---")
+        # === Boxplot ===
+        if not df_estado.empty:
+            st.markdown("**Comparativo de Distribuição**")
+            fig_box_est = px.box(
+                df_estado, 
+                x="state", 
+                y=var_coluna, 
+                color="region", # Mantém cor da região para referência
+                title=f"Distribuição"
+            )
+            fig_box_est.update_layout(xaxis={'categoryorder':'total descending'})
+            st.plotly_chart(fig_box_est, use_container_width=True)
+        else:
+            st.info("Selecione estados para ver o boxplot.")
         
         # Destaque Individual
         st.markdown("**🔍 Detalhe Individual (Foco em 1 Estado)**")
