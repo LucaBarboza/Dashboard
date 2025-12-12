@@ -4,11 +4,11 @@ import plotly.express as px
 import requests
 
 # --- TÍTULO ---
-st.header("🇧🇷 Painel Climático: Comparativo & Evolução")
+st.header("🇧🇷 Painel Climático: Evolução Histórica (2015-2021)")
 
-# --- 1. CARREGAMENTO DOS DADOS (CACHEADO E OTIMIZADO) ---
-@st.cache_data(ttl=3600, show_spinner=False)
-def carregar_dados():
+# --- 1. CARREGAMENTO E OTIMIZAÇÃO (EM MEMÓRIA) ---
+@st.cache_data(ttl=3600, show_spinner="Carregando dados...")
+def carregar_dados_completo():
     caminhos = [
         "dataframe/clima_brasil_semanal_refinado_2015.csv",
         "clima_brasil_semanal_refinado_2015.csv"
@@ -17,7 +17,7 @@ def carregar_dados():
     df = None
     for caminho in caminhos:
         try:
-            # Lê apenas colunas necessárias para economizar memória RAM
+            # Lê apenas o necessário
             cols = [
                 'semana_ref', 'state', 'temperatura_media', 
                 'chuva_media_semanal', 'umidade_media', 
@@ -33,40 +33,41 @@ def carregar_dados():
         st.stop()
 
     try:
-        # Conversão de Tipos (O segredo da performance)
+        # --- AQUI ACONTECE A MÁGICA (SIMULA O PARQUET) ---
         df['semana_ref'] = pd.to_datetime(df['semana_ref'])
-        df['Ano'] = df['semana_ref'].dt.year
+        
+        # Cria a coluna de Mês/Ano que será usada na animação
         df['Mes_Ano'] = df['semana_ref'].dt.strftime('%Y-%m')
         
-        # Strings para Categorias (Reduz uso de memória)
+        # Converte Estado para Categoria (Economiza 90% de memória nesta coluna)
         df['state'] = df['state'].astype('category')
         
-        # Números para float32 (Reduz uso de memória pela metade)
+        # Reduz a precisão numérica (float64 -> float32) para ficar leve
         cols_num = ['temperatura_media', 'chuva_media_semanal', 'umidade_media', 'vento_medio', 'radiacao_media']
         for col in cols_num:
             df[col] = pd.to_numeric(df[col], downcast='float')
+            
+        # Agrupa por Estado e Mês AGORA para não processar depois
+        # Isso reduz de ~9000 linhas para ~2000 linhas, perfeito para animação
+        df_agrupado = df.groupby(['state', 'Mes_Ano'], observed=True)[cols_num].mean().reset_index()
         
-        # Função de Estação
-        def get_estacao(mes):
-            if mes in [12, 1, 2]: return 'Verão'
-            elif mes in [3, 4, 5]: return 'Outono'
-            elif mes in [6, 7, 8]: return 'Inverno'
-            return 'Primavera'
+        # Ordena cronologicamente para a animação não pular
+        df_agrupado = df_agrupado.sort_values('Mes_Ano')
         
-        df['Estacao'] = df['semana_ref'].dt.month.map(get_estacao).astype('category')
+        return df_agrupado
         
-        return df.sort_values('semana_ref')
     except Exception as e:
         st.error(f"Erro ao tratar dados: {e}")
         st.stop()
 
 # --- 2. CARREGAMENTO DO MAPA ---
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=3600)
 def carregar_geojson():
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
     return requests.get(url).json()
 
-df = carregar_dados()
+# Carrega os dados já otimizados
+df_historico = carregar_dados_completo()
 geojson_brasil = carregar_geojson()
 
 # --- SIDEBAR ---
@@ -83,7 +84,7 @@ variaveis = {
 var_label = st.sidebar.selectbox("Variável:", list(variaveis.keys()))
 var_col = variaveis[var_label]
 
-# Cores
+# Definição de Cores
 if "temperatura" in var_col:
     escala = "RdYlBu_r"
 elif "chuva" in var_col:
@@ -93,111 +94,69 @@ elif "umidade" in var_col:
 else:
     escala = "Spectral_r"
 
-min_g = df[var_col].min()
-max_g = df[var_col].max()
-
-
-# ==============================================================================
-# PARTE 1: GRID COMPARATIVO
-# ==============================================================================
-st.subheader("🗓️ Comparativo Anual")
-
-estacao_filtro = st.radio(
-    "Filtrar Período:",
-    ["Média do Ano", "Verão", "Outono", "Inverno", "Primavera"],
-    horizontal=True
-)
-
-df_grid = df if estacao_filtro == "Média do Ano" else df[df['Estacao'] == estacao_filtro]
-
-# Grid Fixo 2016-2021 (Ignora 2014/2015 que podem estar incompletos no visual)
-anos = [2016, 2017, 2018, 2019, 2020, 2021]
-colunas = st.columns(3)
-
-for i, ano in enumerate(anos):
-    col_idx = i % 3
-    with colunas[col_idx]:
-        df_ano = df_grid[df_grid['Ano'] == ano]
-        
-        if df_ano.empty:
-            st.info(f"{ano}: -")
-            continue
-            
-        # Agrupamento com observed=True para performance
-        df_mapa = df_ano.groupby('state', observed=True)[var_col].mean().reset_index()
-        
-        fig = px.choropleth(
-            df_mapa,
-            geojson=geojson_brasil,
-            locations='state',
-            featureidkey="properties.sigla",
-            color=var_col,
-            color_continuous_scale=escala,
-            range_color=[min_g, max_g],
-            scope="south america",
-            title=f"<b>{ano}</b>"
-        )
-        fig.update_geos(fitbounds="locations", visible=False)
-        fig.update_layout(margin={"r":0,"t":30,"l":0,"b":0}, height=200, coloraxis_showscale=False)
-        st.plotly_chart(fig, use_container_width=True)
-
-# Legenda Simples
-dummy = px.imshow([[min_g, max_g]], color_continuous_scale=escala)
-dummy.update_layout(height=40, margin={"r":0,"t":0,"l":0,"b":0}, coloraxis_showscale=False)
-dummy.update_traces(opacity=0, showscale=True, colorbar=dict(title=None, orientation='h', thickness=10))
-dummy.update_xaxes(visible=False); dummy.update_yaxes(visible=False)
-st.plotly_chart(dummy, use_container_width=True)
-
-st.markdown("---")
+# Calcular limites globais (Min/Max de toda a história)
+min_g = df_historico[var_col].min()
+max_g = df_historico[var_col].max()
 
 # ==============================================================================
-# PARTE 2: ANIMAÇÃO POR ANO (CORRIGIDA)
+# MAPA ANIMADO COMPLETO (2015-2021)
 # ==============================================================================
-st.subheader("🎞️ Linha do Tempo Evolutiva")
-st.info("Selecione um ano abaixo para ver a animação mensal.")
+st.info("Aperte o **Play** abaixo do mapa para ver a evolução completa de Jan/2015 a Abr/2021.")
 
-# Slider de Ano
-anos_disp = sorted(df['Ano'].unique())
-# Define 2016 como padrão se disponível, pois 2014/2015 podem ter poucos dados
-default_year = 2016 if 2016 in anos_disp else anos_disp[-1]
-ano_anim = st.select_slider("Ano:", options=anos_disp, value=default_year)
-
-# Filtrar dados
-df_anim = df[df['Ano'] == ano_anim].copy()
-df_agrupado = df_anim.groupby(['state', 'Mes_Ano'], observed=True)[var_col].mean().reset_index()
-df_agrupado = df_agrupado.sort_values('Mes_Ano')
-
-if not df_agrupado.empty:
+if not df_historico.empty:
     fig_anim = px.choropleth(
-        df_agrupado,
+        df_historico,
         geojson=geojson_brasil,
         locations='state',
         featureidkey="properties.sigla",
         color=var_col,
-        animation_frame="Mes_Ano",
+        
+        # AQUI: Removemos o filtro de ano. A animação usa TODOS os meses.
+        animation_frame="Mes_Ano", 
+        
         color_continuous_scale=escala,
-        range_color=[min_g, max_g],
+        range_color=[min_g, max_g], # Mantém a cor fiel durante toda a animação
         scope="south america",
-        title=f"Evolução em {ano_anim}",
+        title=f"Evolução Histórica: {var_label}",
         hover_data={var_col:':.1f'}
     )
 
+    # Ajustes de Visualização
     fig_anim.update_geos(fitbounds="locations", visible=False)
     fig_anim.update_layout(
-        height=600,
+        height=650, # Mapa bem grande
         margin={"r":0,"t":50,"l":0,"b":0},
-        coloraxis_colorbar=dict(title=None, orientation="h", y=-0.1, thickness=15),
-        sliders=[{"pad": {"t": 30}}]
+        coloraxis_colorbar=dict(
+            title=None, 
+            orientation="h", 
+            y=-0.15,
+            thickness=15
+        ),
+        # Estilo dos botões de play
+        updatemenus=[{
+            "buttons": [
+                {
+                    "args": [None, {"frame": {"duration": 200, "redraw": True}, "fromcurrent": True}],
+                    "label": "Play",
+                    "method": "animate"
+                },
+                {
+                    "args": [[None], {"frame": {"duration": 0, "redraw": True}, "mode": "immediate", "transition": {"duration": 0}}],
+                    "label": "Pause",
+                    "method": "animate"
+                }
+            ],
+            "direction": "left",
+            "pad": {"r": 10, "t": 87},
+            "showactive": False,
+            "type": "buttons",
+            "x": 0.1,
+            "xanchor": "right",
+            "y": 0,
+            "yanchor": "top"
+        }]
     )
-
-    # --- CORREÇÃO DO ERRO INDEXERROR ---
-    # Só tenta ajustar a velocidade se houver animação (mais de 1 quadro)
-    if len(df_agrupado['Mes_Ano'].unique()) > 1:
-        try:
-            fig_anim.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 500
-        except:
-            pass # Se falhar, usa o padrão
 
     st.plotly_chart(fig_anim, use_container_width=True)
 else:
-    st.warning(f"Sem dados detalhados para {ano_anim}")
+    st.error("Erro ao processar dados para animação.")
