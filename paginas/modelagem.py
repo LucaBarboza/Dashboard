@@ -5,7 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import r2_score, mean_absolute_error
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 st.header("🤖 Modelagem e Previsões (Machine Learning)")
 st.markdown("Aqui utilizamos algoritmos de aprendizado de máquina para entender impactos e prever o futuro.")
@@ -35,7 +35,7 @@ def carregar_dados_ml():
 
 df, mapa_nomes = carregar_dados_ml()
 
-tab1, tab2 = st.tabs(["📉 Regressão (Influência)", "u23f1\ufe0f Previsão Temporal"])
+tab1, tab2 = st.tabs(["📉 Regressão (Influência)", "🔮 Previsão Temporal (Validada)"])
 
 # --- TAB 1: REGRESSÃO LINEAR MÚLTIPLA ---
 with tab1:
@@ -46,115 +46,153 @@ with tab1:
     with col1:
         target = st.selectbox("🎯 Variável Alvo (Y):", list(mapa_nomes.keys()), format_func=lambda x: mapa_nomes[x], index=1)
     with col2:
-        # Remove a target da lista de features possíveis
         features_possiveis = [c for c in mapa_nomes.keys() if c != target]
         features = st.multiselect("📊 Variáveis Explicativas (X):", features_possiveis, default=[features_possiveis[0]])
 
     if features:
-        # Preparar dados
         X = df[features]
         y = df[target]
         
-        # Divisão Treino/Teste
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         
-        # Treinar Modelo
         model = LinearRegression()
         model.fit(X_train, y_train)
         
-        # Previsões e Métricas
         y_pred = model.predict(X_test)
         r2 = r2_score(y_test, y_pred)
         mae = mean_absolute_error(y_test, y_pred)
         
-        # Exibir Métricas
         c1, c2, c3 = st.columns(3)
         c1.metric("R² (Explicação)", f"{r2:.2%}", help="Quanto da variação do Y é explicado pelo X.")
         c2.metric("Erro Médio (MAE)", f"{mae:.2f}", help="Erro médio absoluto na unidade da variável.")
         
-        # Exibir Coeficientes (Importância)
         coef_df = pd.DataFrame({'Variável': features, 'Impacto (Coef)': model.coef_})
         coef_df = coef_df.sort_values(by='Impacto (Coef)', key=abs, ascending=False)
         
         st.markdown("#### ⚖️ Peso de cada Variável")
         st.dataframe(coef_df, hide_index=True, use_container_width=True)
         
-        # Gráfico Real vs Previsto
-        st.markdown("#### 👁️ Real vs Previsto (Conjunto de Teste)")
         fig = px.scatter(x=y_test, y=y_pred, labels={'x': 'Valor Real', 'y': 'Valor Previsto pelo Modelo'}, opacity=0.5)
         fig.add_shape(type="line", line=dict(dash='dash'), x0=y.min(), y0=y.max(), x1=y.min(), y1=y.max())
         st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: SÉRIES TEMPORAIS (FORECAST) ---
+# --- TAB 2: SÉRIES TEMPORAIS (VALIDADA) ---
 with tab2:
-    st.subheader("🔮 Previsão de Futuro")
-    st.markdown("Este modelo aprende a **Tendência** (anos) e a **Sazonalidade** (meses) para projetar o futuro.")
+    st.subheader("🔮 Previsão de Futuro com Backtesting")
+    st.markdown("O modelo aprende Tendência (Anos) e Sazonalidade (Meses).")
     
     var_time = st.selectbox("O que queremos prever?", list(mapa_nomes.keys()), format_func=lambda x: mapa_nomes[x], key='time_var')
     
-    # Filtrar por estado (opcional, para reduzir ruído)
     estados = sorted(df['state'].unique())
-    estado_filtro = st.selectbox("Filtrar por Estado (Recomendado para melhor precisão):", estados)
+    estado_filtro = st.selectbox("Filtrar por Estado:", estados)
     
+    # Preparação dos dados
     df_time = df[df['state'] == estado_filtro].copy()
+    df_grouped = df_time.groupby('semana_ref')[var_time].mean().reset_index().sort_values('semana_ref')
     
-    # Agrupar por data (média semanal)
-    df_grouped = df_time.groupby('semana_ref')[var_time].mean().reset_index()
-    df_grouped = df_grouped.sort_values('semana_ref')
-    
-    # --- ENGENHARIA DE RECURSOS (Feature Engineering) ---
-    # Criamos colunas para "ensinar" o modelo sobre sazonalidade
+    # Feature Engineering (Criar colunas matemáticas)
     df_grouped['dia_ordinal'] = df_grouped['semana_ref'].apply(lambda x: x.toordinal())
     df_grouped['mes'] = df_grouped['semana_ref'].dt.month
     
-    # Cria One-Hot Encoding para os meses (Janeiro=1, Fevereiro=0...) 
-    # Isso permite ao modelo linear capturar curvas sazonais!
+    # Dummies para Sazonalidade
     meses_dummies = pd.get_dummies(df_grouped['mes'], prefix='mes').astype(int)
+    # Garante que temos todas as colunas de 1 a 12, mesmo se faltar dados
+    for i in range(1, 13):
+        if f'mes_{i}' not in meses_dummies.columns:
+            meses_dummies[f'mes_{i}'] = 0
+    meses_dummies = meses_dummies[sorted(meses_dummies.columns)] # Ordena colunas
+            
     df_ml = pd.concat([df_grouped, meses_dummies], axis=1)
-    
-    # Definição de X e Y
     features_time = ['dia_ordinal'] + list(meses_dummies.columns)
-    X_t = df_ml[features_time]
-    y_t = df_ml[var_time]
     
-    # Treino
-    model_t = LinearRegression()
-    model_t.fit(X_t, y_t)
+    # --- 1. ETAPA DE VALIDAÇÃO (BACKTESTING) ---
+    st.markdown("---")
+    st.markdown("### 1️⃣ Validação: O modelo acerta o passado?")
     
-    # --- PREVISÃO FUTURA ---
-    dias_futuros = 365 # Prever 1 ano
+    # Separamos o último ano (52 semanas) para teste
+    qtd_teste = 52
+    if len(df_ml) > qtd_teste * 2: # Só faz se tiver dados suficientes
+        train = df_ml.iloc[:-qtd_teste]
+        test = df_ml.iloc[-qtd_teste:]
+        
+        # Treina só no passado antigo
+        model_val = LinearRegression()
+        model_val.fit(train[features_time], train[var_time])
+        
+        # Tenta prever o passado recente (que ele não viu)
+        pred_val = model_val.predict(test[features_time])
+        
+        # Calcula Erro
+        mae_val = mean_absolute_error(test[var_time], pred_val)
+        rmse_val = np.sqrt(mean_squared_error(test[var_time], pred_val))
+        media_real = test[var_time].mean()
+        erro_percentual = (mae_val / media_real) * 100
+        
+        col_v1, col_v2, col_v3 = st.columns(3)
+        col_v1.metric("Erro Médio (MAE)", f"{mae_val:.2f}", help="O quanto o modelo erra em média (na mesma unidade dos dados).")
+        col_v2.metric("Margem de Erro (%)", f"{erro_percentual:.1f}%", help="O erro relativo à média dos valores.")
+        
+        if erro_percentual < 10:
+            col_v3.success("✅ Modelo Confiável")
+        elif erro_percentual < 20:
+            col_v3.warning("⚠️ Precisão Razoável")
+        else:
+            col_v3.error("❌ Modelo Instável")
+            
+        # Gráfico de Validação
+        fig_val = go.Figure()
+        fig_val.add_trace(go.Scatter(x=train['semana_ref'], y=train[var_time], name='Treino (Passado Antigo)', line=dict(color='gray')))
+        fig_val.add_trace(go.Scatter(x=test['semana_ref'], y=test[var_time], name='Realidade (Último Ano)', line=dict(color='blue')))
+        fig_val.add_trace(go.Scatter(x=test['semana_ref'], y=pred_val, name='Previsão do Modelo', line=dict(color='orange', dash='dot')))
+        fig_val.update_layout(title="Teste de Fidelidade (Backtest)", height=400)
+        st.plotly_chart(fig_val, use_container_width=True)
+        
+    else:
+        st.warning("Dados insuficientes para validação histórica segura.")
+
+    # --- 2. ETAPA DE PREVISÃO FUTURA (PRODUÇÃO) ---
+    st.markdown("---")
+    st.markdown("### 2️⃣ Previsão: Olhando para o Futuro")
+    
+    # Agora treinamos com TODOS os dados disponíveis para máxima sabedoria
+    model_full = LinearRegression()
+    model_full.fit(df_ml[features_time], df_ml[var_time])
+    
+    # Criar datas futuras (1 ano)
     ultima_data = df_grouped['semana_ref'].max()
-    datas_futuras = [ultima_data + pd.Timedelta(days=x) for x in range(7, dias_futuros, 7)] # Semanal
+    datas_futuras = [ultima_data + pd.Timedelta(days=x) for x in range(7, 365, 7)]
     
     df_futuro = pd.DataFrame({'semana_ref': datas_futuras})
     df_futuro['dia_ordinal'] = df_futuro['semana_ref'].apply(lambda x: x.toordinal())
     df_futuro['mes'] = df_futuro['semana_ref'].dt.month
     
-    # Recria as dummies para o futuro (garantindo todas as colunas de meses)
-    dummies_futuro = pd.get_dummies(df_futuro['mes'], prefix='mes').astype(int)
-    # Garante que colunas faltantes (ex: se previsão for curta) sejam preenchidas com 0
+    # Dummies futuro
+    dummies_fut = pd.get_dummies(df_futuro['mes'], prefix='mes').astype(int)
     for col in meses_dummies.columns:
-        if col not in dummies_futuro.columns:
-            dummies_futuro[col] = 0
-    dummies_futuro = dummies_futuro[meses_dummies.columns] # Garante ordem
+        if col not in dummies_fut.columns:
+            dummies_fut[col] = 0
+    dummies_fut = dummies_fut[sorted(meses_dummies.columns)]
     
-    X_futuro = pd.concat([df_futuro[['dia_ordinal']], dummies_futuro], axis=1)
+    X_futuro = pd.concat([df_futuro[['dia_ordinal']], dummies_fut], axis=1)
     
     # Prever
-    y_futuro_pred = model_t.predict(X_futuro)
-    df_futuro['previsao'] = y_futuro_pred
-    df_futuro['tipo'] = 'Previsão'
+    y_fut = model_full.predict(X_futuro)
     
     # Plotar
-    df_grouped['tipo'] = 'Histórico'
-    df_grouped = df_grouped.rename(columns={var_time: 'valor'})
-    df_futuro = df_futuro.rename(columns={'previsao': 'valor'})
+    fig_fut = go.Figure()
+    fig_fut.add_trace(go.Scatter(x=df_grouped['semana_ref'], y=df_grouped[var_time], name='Histórico Completo', line=dict(color='blue')))
+    fig_fut.add_trace(go.Scatter(x=df_futuro['semana_ref'], y=y_fut, name='Previsão Futura (12 Meses)', line=dict(color='green', width=3)))
     
-    df_final = pd.concat([df_grouped[['semana_ref', 'valor', 'tipo']], df_futuro[['semana_ref', 'valor', 'tipo']]])
-    
-    fig_time = px.line(df_final, x='semana_ref', y='valor', color='tipo', 
-                       color_discrete_map={'Histórico': 'blue', 'Previsão': 'orange'},
-                       title=f"Previsão de {mapa_nomes[var_time]} para {estado_filtro} (Próximos 12 meses)")
-    
-    st.plotly_chart(fig_time, use_container_width=True)
-    st.caption("Nota: Este modelo usa Regressão Linear com componentes sazonais (Dummy Variables) para estimar o padrão anual.")
+    # Intervalo de Confiança (Visual Simples baseado no MAE da validação)
+    if 'mae_val' in locals():
+        fig_fut.add_trace(go.Scatter(
+            x=list(df_futuro['semana_ref']) + list(df_futuro['semana_ref'])[::-1],
+            y=list(y_fut + mae_val) + list(y_fut - mae_val)[::-1],
+            fill='toself',
+            fillcolor='rgba(0,128,0,0.2)',
+            line=dict(color='rgba(255,255,255,0)'),
+            name='Margem de Erro Esperada'
+        ))
+
+    fig_fut.update_layout(title=f"Projeção para os Próximos 12 Meses: {mapa_nomes[var_time]} ({estado_filtro})", height=500)
+    st.plotly_chart(fig_fut, use_container_width=True)
