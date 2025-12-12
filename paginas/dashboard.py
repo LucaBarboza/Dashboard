@@ -123,7 +123,7 @@ fig_box = px.box(
     y=var_coluna, 
     color=cor_grafico, 
     title=f"Boxplot de {var_label}{sulfixo_titulo}",
-    template="simple_white"
+    template="plotly_white"
 )
 
 if not estados_filtro:
@@ -141,7 +141,6 @@ fig_box.update_layout(
         tickfont=dict(color='black'),   
         title_font=dict(color='black')  
     ),
-    template='plotly_white',
     showlegend=False
 )
 
