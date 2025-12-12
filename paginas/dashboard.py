@@ -141,8 +141,8 @@ fig_box.update_layout(
         tickfont=dict(color='black'),   
         title_font=dict(color='black')  
     ),
-    legend_itemclick=False,
-    font=dict(color='black') 
+    template='plotly_white',
+    showlegend=False
 )
 
 # --- EXIBIÇÃO ---
