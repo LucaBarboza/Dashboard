@@ -20,21 +20,6 @@ paginas = {
     ]
 }
 
-@st.cache_data
-def carregar_dados_reais():
-    # Lê o arquivo CSV enviado
-    df = pd.read_csv("dataframe/dados_AS.csv")
-    
-    # Conversão de data
-    df['last_updated'] = pd.to_datetime(df['last_updated'])
-    
-    # Criando colunas de tempo
-    df['Mes_Ano'] = df['last_updated'].dt.strftime('%Y-%m')
-    df['Data_Simples'] = df['last_updated'].dt.date
-    
-    return df
-
-
 # Execução da navegação
 pag = st.navigation(paginas)
 pag.run()

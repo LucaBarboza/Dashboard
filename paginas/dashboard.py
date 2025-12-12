@@ -3,13 +3,13 @@ import pandas as pd
 import plotly.express as px
 
 # 1. Configuração da Página
-st.set_page_config(page_title="Análise Descritiva", layout="wide")
+st.set_page_config(page_title="Análise Descritiva - Clima Brasil", layout="wide")
 
 # 2. Carregamento de Dados
 @st.cache_data
 def carregar_dados():
-    df = pd.read_csv("dataframe/dados_AS2_semanal.csv")
-    df['semana'] = pd.to_datetime(df['semana'])
+    df = pd.read_csv("clima_brasil_semanal_refinado_2015.csv")
+    df['semana'] = pd.to_datetime(df['semana_ref'])
     df['Data_Dia'] = df['semana'].dt.date
     return df
 
@@ -18,28 +18,26 @@ df = carregar_dados()
 # --- BARRA LATERAL (FILTROS) ---
 st.sidebar.header("Filtros")
 
-# Filtro de País
-paises = sorted(df['country'].unique().astype(str))
-paises_filtro = st.sidebar.multiselect("Selecione os Países:", paises, default=paises)
+# Filtro de Estado
+estados = sorted(df['state'].unique().astype(str))
+estados_filtro = st.sidebar.multiselect("Selecione os Estados:", estados, default=estados)
 
 # Aplica o filtro no DataFrame
-# Lógica: Se a lista estiver vazia, pega o DF inteiro (Geralzão)
-if paises_filtro:
-    df_filtered = df[df['country'].isin(paises_filtro)]
-    titulo_resumo = "Resumo dos Países Selecionados"
+if estados_filtro:
+    df_filtered = df[df['state'].isin(estados_filtro)]
+    titulo_resumo = "Resumo dos Estados Selecionados"
 else:
     df_filtered = df
-    titulo_resumo = "Resumo GERAL (Todos os Países)"
+    titulo_resumo = "Resumo GERAL (Todos os Estados)"
 
 # --- SELEÇÃO DE VARIÁVEL ---
 cols_numericas = {
-    'Vento (km/h)': 'wind_kph',
-    'Pressão (in)': 'pressure_in', 
-    'Precipitação (mm)': 'precip_mm', 
-    'Umidade (%)': 'humidity', 
-    'Cobertura de Nuvens (%)': 'cloud',
-    'Índice UV': 'uv_index',
-    'Sensação Térmica (C)': 'feels_like_celsius'
+    'Chuva Média (mm)': 'chuva_media_semanal', # media semanal da soma de chuva em todas as estações
+    'Temperatura Média (C)': 'temperatura_media',
+    'Umidade Média (%)': 'umidade_media', 
+    'Vento Médio': 'vento_medio', 
+    'Pressão Média': 'pressao_media',
+    'Radiação Média': 'radiacao_media'
 }
 
 st.subheader("Configuração da Análise")
@@ -56,11 +54,11 @@ var_coluna = cols_numericas[var_label]
 st.markdown("---")
 
 # --- ANÁLISE ESTATÍSTICA (Tabela) ---
-if not paises_filtro:
-    # CENÁRIO 1: NENHUM PAÍS SELECIONADO -> MOSTRAR APENAS NÚMEROS
+if not estados_filtro:
+    # CENÁRIO 1: NENHUM ESTADO SELECIONADO -> MOSTRAR APENAS NÚMEROS
     st.subheader(f"🌍 Visão Geral: {var_label}")
     
-    # Criamos o DataFrame SEM a coluna 'country', apenas com os valores
+    # Criamos o DataFrame SEM a coluna estados, apenas com os valores
     tabela_final = pd.DataFrame({
         'count': [df[var_coluna].count()],
         'mean': [df[var_coluna].mean()],
@@ -71,27 +69,25 @@ if not paises_filtro:
     })
 
 else:
-    # CENÁRIO 2: PAÍSES SELECIONADOS -> MOSTRAR NOMES DOS PAÍSES
-    st.subheader(f"📍 Detalhamento por País: {var_label}")
+    # CENÁRIO 2: ESTADOS SELECIONADOS -> MOSTRAR NOMES DOS ESTADOS
+    st.subheader(f"📍 Detalhamento por Estado: {var_label}")
     
-    df_filtered = df[df['country'].isin(paises_filtro)]
+    df_filtered = df[df['state'].isin(estados_filtro)]
     
-    # Aqui mantemos a coluna 'country' (que vira index no groupby)
-    tabela_final = df_filtered.groupby('country')[var_coluna].agg(
+    # Agrupamento por estado
+    tabela_final = df_filtered.groupby('state')[var_coluna].agg(
         ['count', 'mean', 'std', 'min', 'max', 'median']
     ).reset_index()
     
     tabela_final = tabela_final.sort_values(by='mean', ascending=False)
 
 # EXIBIÇÃO DA TABELA
-# O Streamlit é inteligente: se a coluna "country" não existir (Cenário 1),
-# ele ignora a configuração dela e mostra só os números.
 st.dataframe(
     tabela_final,
     use_container_width=True,
     hide_index=True,
     column_config={
-        "country": st.column_config.TextColumn("Referência", width="large"),
+        "state": st.column_config.TextColumn("Estado", width="large"), # Adaptação de rótulo
         "count": st.column_config.NumberColumn("Nº Registros", format="%d"),
         "mean": st.column_config.NumberColumn("Média", format="%.2f"),
         "std": st.column_config.NumberColumn("Desv. Padrão", format="%.2f"),
@@ -106,38 +102,20 @@ st.markdown("---")
 st.subheader("📈 Visualização Gráfica")
 
 # Define configurações dinâmicas baseadas no filtro
-if not paises_filtro:
-    # MODO GERAL: Gráficos únicos (sem separar por cores de países)
-    cor_grafico = None           # Uma cor só para tudo
-    eixo_x_box = None            # Um boxplot único
-    colunas_agrupamento = ['Data_Dia'] # Agrupa só por data (média mundial)
+if not estados_filtro:
+    # MODO GERAL: Gráficos únicos (sem separar por cores de estados)
+    cor_grafico = None           
+    eixo_x_box = None            
+    colunas_agrupamento = ['Data_Dia'] 
     sulfixo_titulo = " (Visão Global)"
 else:
-    # MODO DETALHADO: Separa por cores dos países
-    cor_grafico = "country"
-    eixo_x_box = "country"
-    colunas_agrupamento = ['Data_Dia', 'country'] # Mantém a separação
-    sulfixo_titulo = " (por País)"
+    # MODO DETALHADO: Separa por cores dos estados
+    cor_grafico = "state"
+    eixo_x_box = "state"
+    colunas_agrupamento = ['Data_Dia', 'state'] 
+    sulfixo_titulo = " (por Estado)"
 
-# col1, col2 = st.columns(2)
-
-# with col1:
-#     st.markdown("**Distribuição (Histograma)**")
-#     fig_hist = px.histogram(
-#         df_filtered, 
-#         x=var_coluna, 
-#         color=cor_grafico, # Muda dinamicamente
-#         nbins=30,
-#         title=f"Distribuição de {var_label}{sulfixo_titulo}",
-#         opacity=0.7
-#     )
-#     # Se for geral, remove a legenda automática que pode ficar poluída
-#     if not paises_filtro:
-#         fig_hist.update_layout(showlegend=False)
-        
-#     st.plotly_chart(fig_hist, use_container_width=True)
-
-# with col2:
+# st.markdown("**Comparação (Boxplot)**") # (Mantido do original)
 st.markdown("**Comparação (Boxplot)**")
 fig_box = px.box(
     df_filtered, 
@@ -148,30 +126,30 @@ fig_box = px.box(
     template="simple_white"
 )
 
-if not paises_filtro:
+if not estados_filtro:
     fig_box.update_layout(showlegend=False, xaxis_title="Global")
 
 # --- FORÇAR PRETO ABSOLUTO ---
 fig_box.update_layout(
     xaxis=dict(
         fixedrange=True,
-        tickfont=dict(color='black'),   # Cor dos números
-        title_font=dict(color='black')  # Cor do título do eixo
+        tickfont=dict(color='black'),   
+        title_font=dict(color='black')  
     ),
     yaxis=dict(
         fixedrange=True,
-        tickfont=dict(color='black'),   # Cor dos números
-        title_font=dict(color='black')  # Cor do título do eixo
+        tickfont=dict(color='black'),   
+        title_font=dict(color='black')  
     ),
     legend_itemclick=False,
-    font=dict(color='black') # Cor geral
+    font=dict(color='black') 
 )
 
-# --- EXIBIÇÃO (Com theme=None para o Streamlit não mexer nas cores) ---
+# --- EXIBIÇÃO ---
 st.plotly_chart(
     fig_box, 
     use_container_width=True, 
-    theme=None,  # <--- ISSO É O IMPORTANTE. Impede o Streamlit de deixar cinza.
+    theme=None,  
     config={
         'displaylogo': False,
         'modeBarButtonsToRemove': [
@@ -184,14 +162,14 @@ st.plotly_chart(
 # Gráfico de Linha (Série Temporal)
 st.markdown("**Evolução no Tempo (Média Diária)**")
 
-# Agrupamento dinâmico (Geral ou por País)
+# Agrupamento dinâmico
 df_line = df_filtered.groupby(colunas_agrupamento)[var_coluna].mean().reset_index()
 
 fig_line = px.line(
     df_line, 
     x="Data_Dia", 
     y=var_coluna, 
-    color=cor_grafico, # Se for None, desenha uma linha única
+    color=cor_grafico, 
     markers=True,
     title=f"Evolução de {var_label}{sulfixo_titulo}"
 )
