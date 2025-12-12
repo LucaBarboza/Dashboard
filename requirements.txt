@@ -10,3 +10,4 @@ fastparquet
 folium
 streamlit-folium
 branca
+scipy
