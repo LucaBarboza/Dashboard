@@ -122,18 +122,20 @@ fig_box = px.box(
     x=eixo_x_box, 
     y=var_coluna, 
     color=cor_grafico, 
-    title=f"Boxplot de {var_label}{sulfixo_titulo}",
-    xaxis=dict(
-        fixedrange=True,
-        title = "Estados"
-        ),
-    yaxis=dict(
-        fixedrange=True,
-        title = f"{var_label}"
-    )
+    title=f"Boxplot de {var_label}{sulfixo_titulo}"
 )
 
-fig_box.update_layout(showlegend=False)
+fig_box.update_layout(
+    showlegend=False,
+    xaxis=dict(
+        fixedrange=True,
+        title="Estados"
+    ),
+    yaxis=dict(
+        fixedrange=True,
+        title=f"{var_label}"
+    )
+)
 
 if not estados_filtro:
     fig_box.update_layout(xaxis_title="Global")
