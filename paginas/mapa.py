@@ -3,64 +3,67 @@ import pandas as pd
 import plotly.express as px
 import requests
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
-# Se já estiver configurado no app.py, esta linha é ignorada, mas garante funcionamento isolado
-# st.set_page_config(layout="wide") 
+# --- TÍTULO E EXPLICAÇÃO ---
+st.header("🌍 Mapa Animado: Evolução Climática")
+st.markdown("""
+Abaixo, você pode assistir à evolução do clima brasileiro ano a ano.
+1. Escolha a **Variável** (ex: Temperatura).
+2. Escolha a **Estação do Ano** (ex: Verão).
+3. Aperte o **Play ▶️** no canto inferior esquerdo do mapa.
+""")
 
-st.header("comparação Sazonal: Evolução Anual")
-st.info("Selecione a estação do ano abaixo para comparar as mudanças climáticas ao longo dos anos.")
-
-# --- 1. CARREGAMENTO DE DADOS ---
+# --- 1. CARREGAMENTO DE DADOS E GEOJSON ---
 @st.cache_data(ttl=3600)
-def carregar_dados_completos():
-    caminhos = [
-        "dataframe/clima_brasil_semanal_refinado_2015.csv",
-        "clima_brasil_semanal_refinado_2015.csv"
-    ]
-    df = None
-    for c in caminhos:
+def carregar_dados_mapa():
+    try:
+        # Tenta carregar do caminho padrão
+        df = pd.read_csv("dataframe/clima_brasil_semanal_refinado_2015.csv")
+    except:
         try:
-            df = pd.read_csv(c)
-            break
-        except: continue
+            # Tenta carregar da raiz (caso mude a pasta)
+            df = pd.read_csv("clima_brasil_semanal_refinado_2015.csv")
+        except:
+            st.error("Erro Crítico: CSV de dados não encontrado.")
+            st.stop()
+            
+    # Tratamento de Datas
+    if 'semana_ref' in df.columns:
+        df['semana_ref'] = pd.to_datetime(df['semana_ref'])
+        df['ano'] = df['semana_ref'].dt.year
+        df['mes'] = df['semana_ref'].dt.month
         
-    if df is None:
-        st.error("Erro: CSV não encontrado.")
-        st.stop()
+        # Função para criar a coluna de Estação
+        def get_estacao(m):
+            if m in [12, 1, 2]: return "Verão"
+            elif m in [3, 4, 5]: return "Outono"
+            elif m in [6, 7, 8]: return "Inverno"
+            else: return "Primavera"
+        df['estacao'] = df['mes'].apply(get_estacao)
         
-    # Tratamento de datas e criação de colunas temporais
-    df['semana_ref'] = pd.to_datetime(df['semana_ref'])
-    df['ano'] = df['semana_ref'].dt.year
-    df['mes'] = df['semana_ref'].dt.month
-    
-    # Função para definir estação do ano (Simplificada para Climatologia Geral)
-    def get_estacao(mes):
-        if mes in [12, 1, 2]: return "Verão"
-        elif mes in [3, 4, 5]: return "Outono"
-        elif mes in [6, 7, 8]: return "Inverno"
-        else: return "Primavera"
-        
-    df['estacao'] = df['mes'].apply(get_estacao)
-    
     return df
 
 @st.cache_data(ttl=3600)
 def carregar_geojson():
-    # GeoJSON oficial dos estados brasileiros
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
     try:
-        return requests.get(url).json()
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            return response.json()
     except Exception as e:
-        st.error(f"Erro ao carregar mapa: {e}")
-        return None
+        st.error(f"Erro ao baixar mapa (GeoJSON): {e}")
+    return None
 
-df = carregar_dados_completos()
+df = carregar_dados_mapa()
 geojson = carregar_geojson()
 
-# --- 2. BARRA LATERAL (CONTROLES) ---
-st.sidebar.header("⚙️ Configurações")
+if geojson is None:
+    st.warning("Sem conexão para carregar o mapa do Brasil. Verifique sua internet.")
+    st.stop()
 
-# Seleção de Variável
+# --- 2. CONTROLES LATERAIS ---
+st.sidebar.header("Configurações do Mapa")
+
+# Seletor de Variável
 variaveis = {
     "Temperatura (°C)": "temperatura_media",
     "Chuva (mm)": "chuva_media_semanal",
@@ -68,84 +71,74 @@ variaveis = {
     "Vento (m/s)": "vento_medio",
     "Radiação": "radiacao_media"
 }
-var_label = st.sidebar.selectbox("Variável Climática:", list(variaveis.keys()))
+var_label = st.sidebar.selectbox("O que você quer visualizar?", list(variaveis.keys()))
 var_col = variaveis[var_label]
 
-# Filtro de Anos (Opcional, para não poluir se tiver muitos anos)
-anos_disponiveis = sorted(df['ano'].unique())
-# Seleciona por padrão os últimos 6 anos se houver muitos
-padrao_anos = anos_disponiveis[-6:] if len(anos_disponiveis) > 6 else anos_disponiveis
-anos_selecionados = st.sidebar.multiselect("Anos para exibir:", anos_disponiveis, default=padrao_anos)
+# Seletor de Estação (Filtro Principal)
+estacao_selecionada = st.sidebar.radio(
+    "Filtrar por Estação:",
+    ["Verão", "Outono", "Inverno", "Primavera"],
+    index=0
+)
 
-# --- 3. INTERFACE PRINCIPAL ---
+# --- 3. PREPARAÇÃO DOS DADOS PARA ANIMAÇÃO ---
+# Filtra pela estação escolhida
+df_filtrado = df[df['estacao'] == estacao_selecionada].copy()
 
-# Botões de Estação (Pills ou Radio horizontal)
-col_nav, _ = st.columns([2, 1])
-with col_nav:
-    estacao_selecionada = st.radio(
-        "Selecione a Estação:",
-        ["Verão", "Outono", "Inverno", "Primavera"],
-        horizontal=True,
-        index=0 # Começa no Verão
-    )
+# Agrupa por ANO e ESTADO (Tiramos a média da estação naquele ano)
+df_animacao = df_filtrado.groupby(['ano', 'state'])[var_col].mean().reset_index()
 
-# --- 4. PROCESSAMENTO DOS DADOS ---
-# Filtrar pelo input do usuário
-df_filtrado = df[
-    (df['estacao'] == estacao_selecionada) & 
-    (df['ano'].isin(anos_selecionados))
-]
+# Ordena por ano para a animação seguir a cronologia correta
+df_animacao = df_animacao.sort_values('ano')
 
-# Agrupar: Calcula a média da variável para cada Estado em cada Ano
-df_mapa = df_filtrado.groupby(['ano', 'state'])[var_col].mean().reset_index()
+# Define limites de cor FIXOS (Para a cor não "piscar" quando mudar o ano)
+min_val = df_animacao[var_col].min()
+max_val = df_animacao[var_col].max()
 
-# Garantir ordenação para os mapas aparecerem na ordem certa
-df_mapa = df_mapa.sort_values('ano')
+# --- 4. CONSTRUÇÃO DO MAPA ANIMADO ---
 
-# --- 5. VISUALIZAÇÃO (PLOTLY FACET MAPS) ---
-if df_mapa.empty:
-    st.warning("Sem dados para essa combinação de filtros.")
+# Definição da Paleta de Cores
+if "chuva" in var_col:
+    escala = "Blues"
+elif "temperatura" in var_col:
+    escala = "RdYlBu_r" # Invertido: Vermelho para quente
+elif "umidade" in var_col:
+    escala = "YlGnBu"
 else:
-    # Definir escala de cor baseada na variável
-    if "chuva" in var_col:
-        escala_cor = "Blues"
-    elif "temperatura" in var_col:
-        escala_cor = "RdYlBu_r" # Vermelho (quente) a Azul (frio) invertido
-    elif "umidade" in var_col:
-        escala_cor = "YlGnBu"
-    else:
-        escala_cor = "Viridis"
+    escala = "Viridis"
 
-    # Criar o Grid de Mapas (Facet Plot)
-    fig = px.choropleth_mapbox(
-        df_mapa,
-        geojson=geojson,
-        locations='state',        # Coluna com a sigla do estado
-        featureidkey="properties.sigla", # Onde está a sigla no GeoJSON
-        color=var_col,
-        facet_col="ano",          # CRUCIAL: Cria um mapa por ano
-        facet_col_wrap=3,         # Quebra linha a cada 3 mapas (para mostrar 6 fica 3x2)
-        color_continuous_scale=escala_cor,
-        mapbox_style="carto-positron",
-        zoom=3,
-        center={"lat": -15.7, "lon": -52},
-        opacity=0.9,
-        title=f"Média de {var_label} no {estacao_selecionada} (Por Ano)",
-        height=700 # Altura fixa para garantir visibilidade
-    )
+# Criação do Gráfico
+fig = px.choropleth_mapbox(
+    df_animacao,
+    geojson=geojson,
+    locations='state',
+    featureidkey="properties.sigla",
+    color=var_col,
+    animation_frame="ano", # <--- AQUI ESTÁ A MÁGICA (Cria o Player)
+    color_continuous_scale=escala,
+    range_color=[min_val, max_val], # Trava a escala de cores
+    mapbox_style="carto-positron",
+    zoom=3.5,
+    center={"lat": -15.7, "lon": -52},
+    opacity=0.9,
+    title=f"Evolução: {var_label} no {estacao_selecionada} (2015-2021)",
+    height=700
+)
 
-    # Ajustes finos de layout
-    fig.update_layout(
-        margin={"r":0,"t":50,"l":0,"b":0},
-        coloraxis_colorbar=dict(title=var_label)
-    )
+# Ajustes de Layout (Margens e Velocidade)
+fig.update_layout(
+    margin={"r":0,"t":50,"l":0,"b":0},
+    coloraxis_colorbar=dict(title=var_label),
+    updatemenus=[dict(type='buttons', showactive=False,
+    y=0, x=0, xanchor='right', yanchor='top', pad=dict(t=0, r=10),
+    buttons=[dict(label='Play',
+                  method='animate',
+                  args=[None, dict(frame=dict(duration=800, redraw=True), 
+                                   fromcurrent=True)])])] # Duration = Velocidade (ms)
+)
 
-    # Exibir no Streamlit
-    st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
 
-    # Tabela Resumo (Opcional, abaixo dos mapas)
-    with st.expander("Ver dados detalhados em tabela"):
-        st.dataframe(
-            df_mapa.pivot(index='state', columns='ano', values=var_col).style.format("{:.1f}"),
-            use_container_width=True
-        )
+# Tabela de Dados (Opcional)
+with st.expander("Ver dados brutos desta animação"):
+    st.dataframe(df_animacao.pivot(index='state', columns='ano', values=var_col))
