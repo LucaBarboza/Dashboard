@@ -1,18 +1,18 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 import requests
-import folium
-from folium.plugins import TimeSliderChoropleth
-from streamlit_folium import st_folium
-import branca.colormap as cm
 
-# --- TÍTULO ---
-st.header("🇧🇷 Evolução Climática: TimeSlider (Alta Performance)")
-st.info("Este mapa processa todos os dados de uma vez. A animação roda direto no seu navegador sem travar.")
+# --- CONFIGURAÇÃO DA PÁGINA ---
+# Se já estiver configurado no app.py, esta linha é ignorada, mas garante funcionamento isolado
+# st.set_page_config(layout="wide") 
+
+st.header("comparação Sazonal: Evolução Anual")
+st.info("Selecione a estação do ano abaixo para comparar as mudanças climáticas ao longo dos anos.")
 
 # --- 1. CARREGAMENTO DE DADOS ---
 @st.cache_data(ttl=3600)
-def carregar_dados():
+def carregar_dados_completos():
     caminhos = [
         "dataframe/clima_brasil_semanal_refinado_2015.csv",
         "clima_brasil_semanal_refinado_2015.csv"
@@ -28,26 +28,39 @@ def carregar_dados():
         st.error("Erro: CSV não encontrado.")
         st.stop()
         
+    # Tratamento de datas e criação de colunas temporais
     df['semana_ref'] = pd.to_datetime(df['semana_ref'])
-    df['timestamp'] = df['semana_ref'].astype(int) // 10**9
-    df['timestamp'] = df['timestamp'].astype(str)
+    df['ano'] = df['semana_ref'].dt.year
+    df['mes'] = df['semana_ref'].dt.month
     
-    return df.sort_values('semana_ref')
+    # Função para definir estação do ano (Simplificada para Climatologia Geral)
+    def get_estacao(mes):
+        if mes in [12, 1, 2]: return "Verão"
+        elif mes in [3, 4, 5]: return "Outono"
+        elif mes in [6, 7, 8]: return "Inverno"
+        else: return "Primavera"
+        
+    df['estacao'] = df['mes'].apply(get_estacao)
+    
+    return df
 
 @st.cache_data(ttl=3600)
 def carregar_geojson():
+    # GeoJSON oficial dos estados brasileiros
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
     try:
         return requests.get(url).json()
     except Exception as e:
-        st.error(f"Erro ao baixar GeoJSON: {e}")
-        st.stop()
+        st.error(f"Erro ao carregar mapa: {e}")
+        return None
 
-df = carregar_dados()
+df = carregar_dados_completos()
 geojson = carregar_geojson()
 
-# --- SIDEBAR ---
-st.sidebar.markdown("### ⚙️ Variável")
+# --- 2. BARRA LATERAL (CONTROLES) ---
+st.sidebar.header("⚙️ Configurações")
+
+# Seleção de Variável
 variaveis = {
     "Temperatura (°C)": "temperatura_media",
     "Chuva (mm)": "chuva_media_semanal",
@@ -55,75 +68,84 @@ variaveis = {
     "Vento (m/s)": "vento_medio",
     "Radiação": "radiacao_media"
 }
-var_label = st.sidebar.selectbox("Escolha o indicador:", list(variaveis.keys()))
+var_label = st.sidebar.selectbox("Variável Climática:", list(variaveis.keys()))
 var_col = variaveis[var_label]
 
-# Definição das cores
-if "temperatura" in var_col:
-    colors = ['#313695', '#4575b4', '#74add1', '#abd9e9', '#e0f3f8', '#ffffbf', '#fee090', '#fdae61', '#f46d43', '#d73027', '#a50026']
-elif "chuva" in var_col:
-    colors = ['#f7fbff', '#deebf7', '#c6dbef', '#9ecae1', '#6baed6', '#4292c6', '#2171b5', '#08519c', '#08306b']
-else:
-    colors = ['#ffffe5', '#f7fcb9', '#addd8e', '#41ab5d', '#238443', '#005a32']
+# Filtro de Anos (Opcional, para não poluir se tiver muitos anos)
+anos_disponiveis = sorted(df['ano'].unique())
+# Seleciona por padrão os últimos 6 anos se houver muitos
+padrao_anos = anos_disponiveis[-6:] if len(anos_disponiveis) > 6 else anos_disponiveis
+anos_selecionados = st.sidebar.multiselect("Anos para exibir:", anos_disponiveis, default=padrao_anos)
 
-# --- PREPARAÇÃO DO DICIONÁRIO DE ESTILOS ---
-# Em paginas/mapa.py
+# --- 3. INTERFACE PRINCIPAL ---
 
-@st.cache_data(show_spinner="Renderizando mapa temporal...")
-def gerar_mapa_timeslider(df_data, coluna, _geojson, lista_cores):
-    
-    # 1. Proteção: Verifica se a coluna existe
-    if coluna not in df_data.columns:
-        st.error(f"Coluna '{coluna}' não encontrada no DataFrame.")
-        return None, None
-        
-    # 2. Proteção: Pega apenas números válidos (ignora vazios/NaN) para calcular a escala
-    dados_validos = df_data[coluna].dropna()
-    
-    if dados_validos.empty:
-        st.warning(f"A variável selecionada não contém dados válidos para exibição.")
-        return None, None
-
-    min_val = float(dados_validos.min())
-    max_val = float(dados_validos.max())
-    
-    # 3. Proteção CRÍTICA: Evita o erro "Thresholds not sorted"
-    # Se min == max (ex: todos os valores são 25.0), o mapa quebra.
-    # Adicionamos uma fração minúscula ao max para criar um intervalo artificial.
-    if min_val >= max_val:
-        max_val = min_val + 0.0001
-    
-    # Cria a escala de cores
-    colormap = cm.LinearColormap(
-        colors=lista_cores,
-        vmin=min_val,
-        vmax=max_val,
-        caption=var_label
+# Botões de Estação (Pills ou Radio horizontal)
+col_nav, _ = st.columns([2, 1])
+with col_nav:
+    estacao_selecionada = st.radio(
+        "Selecione a Estação:",
+        ["Verão", "Outono", "Inverno", "Primavera"],
+        horizontal=True,
+        index=0 # Começa no Verão
     )
 
-    # 4. Construir o dicionário de estilos
-    styledict = {}
-    
-    for feature in _geojson['features']:
-        sigla = feature['properties']['sigla']
-        styledict[sigla] = {}
-        
-        # Filtra o dataframe original (pode conter NaNs, então usamos fillna ou try/except)
-        df_estado = df_data[df_data['state'] == sigla]
-        
-        for _, row in df_estado.iterrows():
-            # Se o valor for nulo, pulamos ou pintamos de cinza (aqui pulamos)
-            if pd.isna(row[coluna]):
-                continue
-                
-            valor = row[coluna]
-            timestamp = row['timestamp']
-            
-            cor_hex = colormap(valor)
-            
-            styledict[sigla][timestamp] = {
-                'color': cor_hex,
-                'opacity': 0.8
-            }
-    
-    return styledict, colormap
+# --- 4. PROCESSAMENTO DOS DADOS ---
+# Filtrar pelo input do usuário
+df_filtrado = df[
+    (df['estacao'] == estacao_selecionada) & 
+    (df['ano'].isin(anos_selecionados))
+]
+
+# Agrupar: Calcula a média da variável para cada Estado em cada Ano
+df_mapa = df_filtrado.groupby(['ano', 'state'])[var_col].mean().reset_index()
+
+# Garantir ordenação para os mapas aparecerem na ordem certa
+df_mapa = df_mapa.sort_values('ano')
+
+# --- 5. VISUALIZAÇÃO (PLOTLY FACET MAPS) ---
+if df_mapa.empty:
+    st.warning("Sem dados para essa combinação de filtros.")
+else:
+    # Definir escala de cor baseada na variável
+    if "chuva" in var_col:
+        escala_cor = "Blues"
+    elif "temperatura" in var_col:
+        escala_cor = "RdYlBu_r" # Vermelho (quente) a Azul (frio) invertido
+    elif "umidade" in var_col:
+        escala_cor = "YlGnBu"
+    else:
+        escala_cor = "Viridis"
+
+    # Criar o Grid de Mapas (Facet Plot)
+    fig = px.choropleth_mapbox(
+        df_mapa,
+        geojson=geojson,
+        locations='state',        # Coluna com a sigla do estado
+        featureidkey="properties.sigla", # Onde está a sigla no GeoJSON
+        color=var_col,
+        facet_col="ano",          # CRUCIAL: Cria um mapa por ano
+        facet_col_wrap=3,         # Quebra linha a cada 3 mapas (para mostrar 6 fica 3x2)
+        color_continuous_scale=escala_cor,
+        mapbox_style="carto-positron",
+        zoom=3,
+        center={"lat": -15.7, "lon": -52},
+        opacity=0.9,
+        title=f"Média de {var_label} no {estacao_selecionada} (Por Ano)",
+        height=700 # Altura fixa para garantir visibilidade
+    )
+
+    # Ajustes finos de layout
+    fig.update_layout(
+        margin={"r":0,"t":50,"l":0,"b":0},
+        coloraxis_colorbar=dict(title=var_label)
+    )
+
+    # Exibir no Streamlit
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Tabela Resumo (Opcional, abaixo dos mapas)
+    with st.expander("Ver dados detalhados em tabela"):
+        st.dataframe(
+            df_mapa.pivot(index='state', columns='ano', values=var_col).style.format("{:.1f}"),
+            use_container_width=True
+        )
