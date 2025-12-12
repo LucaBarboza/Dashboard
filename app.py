@@ -16,7 +16,9 @@ paginas = {
     ],
     "Análise de dados": [
         st.Page('paginas/dashboard.py', title='Dashboard Interativo', default=False),
-        st.Page('paginas/mapa.py', title='Mapa Temporal Climático', default=False)
+        st.Page('paginas/mapa.py', title='Mapa Temporal Climático', default=False),
+        # NOVA PÁGINA ADICIONADA AQUI:
+        st.Page('paginas/estatistica.py', title='Testes e Correlações', icon="📊")
     ]
 }
 
