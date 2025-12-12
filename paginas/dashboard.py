@@ -280,12 +280,34 @@ else:
                 df_estado, 
                 x="state", 
                 y=var_coluna, 
-                color="region", # Mantém cor da região para referência
-                title=f"Distribuição"
+                color="region", 
+                title=f"Distribuição de {var_label}"
             )
-            st.plotly_chart(fig_box_est, use_container_width=True)
-        else:
-            st.info("Selecione estados para ver o boxplot.")
+            fig_box_est.update_layout(
+                showlegend=False,
+                xaxis=dict(
+                    fixedrange=True,
+                    title="Estados"
+                ),
+                yaxis=dict(
+                    fixedrange=True,
+                    title=f"{var_label}"
+                )
+            )
+            st.plotly_chart(
+                fig_box_est, 
+                use_container_width=True, 
+                theme="streamlit",  
+                config={
+                    'displaylogo': False,
+                    'modeBarButtonsToRemove': [
+                        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+                        'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
+                    ]
+                }
+            )
+            else:
+                st.info("Selecione estados para ver o boxplot.")
         
         # Destaque Individual
         st.markdown("**🔍 Detalhe Individual (Foco em 1 Estado)**")
