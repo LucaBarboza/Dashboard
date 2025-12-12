@@ -7,3 +7,6 @@ seaborn
 requests
 pyarrow
 fastparquet
+folium
+streamlit-folium
+branca
