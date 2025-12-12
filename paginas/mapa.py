@@ -3,27 +3,37 @@ import pandas as pd
 import plotly.express as px
 import requests
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
-# st.set_page_config(layout="wide") # Descomente se rodar isolado
-
+# --- TÍTULO ---
 st.header("🇧🇷 Painel Climático: Comparativo & Evolução")
 
-# --- 1. CARREGAMENTO E PREPARAÇÃO DOS DADOS ---
+# --- 1. CARREGAMENTO DOS DADOS (ROBUSTO) ---
 @st.cache_data
 def carregar_dados():
-    # Tenta carregar o arquivo
+    # Tenta ler de diferentes caminhos para evitar erro de "File Not Found"
+    caminhos = [
+        "dataframe/clima_brasil_semanal_refinado_2015.csv",
+        "clima_brasil_semanal_refinado_2015.csv"
+    ]
+    
+    df = None
+    for caminho in caminhos:
+        try:
+            df = pd.read_csv(caminho)
+            break
+        except FileNotFoundError:
+            continue
+            
+    if df is None:
+        st.error("❌ Erro: Não encontrei o arquivo CSV. Verifique se ele está na pasta 'dataframe'.")
+        st.stop()
+
+    # Tratamento
     try:
-        # Ajuste o caminho conforme necessário
-        df = pd.read_csv("dataframe/clima_brasil_semanal_refinado_2015.csv")
-        
         df['semana_ref'] = pd.to_datetime(df['semana_ref'])
-        
-        # Criar colunas de tempo
         df['Ano'] = df['semana_ref'].dt.year
-        # Formatamos Mês_Ano como string ordenável (YYYY-MM) para a animação seguir a ordem correta
-        df['Mes_Ano'] = df['semana_ref'].dt.strftime('%Y-%m')
+        df['Mes_Ano'] = df['semana_ref'].dt.strftime('%Y-%m') # Ex: 2016-01
         
-        # Definir Estações
+        # Função de Estação
         def get_estacao(mes):
             if mes in [12, 1, 2]: return 'Verão'
             elif mes in [3, 4, 5]: return 'Outono'
@@ -34,9 +44,10 @@ def carregar_dados():
         
         return df.sort_values('semana_ref')
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
-        return pd.DataFrame()
+        st.error(f"Erro ao tratar dados: {e}")
+        st.stop()
 
+# --- 2. CARREGAMENTO DO MAPA (GEOJSON) ---
 @st.cache_data
 def carregar_geojson():
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
@@ -45,10 +56,7 @@ def carregar_geojson():
 df = carregar_dados()
 geojson_brasil = carregar_geojson()
 
-if df.empty:
-    st.stop()
-
-# --- SIDEBAR: VARIÁVEIS ---
+# --- SIDEBAR ---
 st.sidebar.markdown("### ⚙️ Configurações")
 
 variaveis = {
@@ -62,7 +70,7 @@ variaveis = {
 var_label = st.sidebar.selectbox("Escolha a Variável:", list(variaveis.keys()))
 var_col = variaveis[var_label]
 
-# Definição de Cores
+# Cores
 if "temperatura" in var_col:
     escala = "RdYlBu_r"
 elif "chuva" in var_col:
@@ -72,124 +80,107 @@ elif "umidade" in var_col:
 else:
     escala = "Spectral_r"
 
-# Calcular Min/Max Global (Crucial para as cores não piscarem)
-min_global = df[var_col].min()
-max_global = df[var_col].max()
+# Calcular limites globais (Para as cores serem comparáveis entre os anos)
+min_g = df[var_col].min()
+max_g = df[var_col].max()
 
 
 # ==============================================================================
-# SEÇÃO 1: GRID COMPARATIVO (ESTÁTICO)
+# PARTE 1: GRID DE MAPAS (2016 - 2021)
 # ==============================================================================
-st.markdown("### 🗓️ Comparativo Anual (2016 - 2021)")
+st.subheader("🗓️ Comparativo Anual")
 
-estacao_selecionada = st.radio(
-    "Filtrar Período (Mapas Estáticos):",
+# Filtro de Estação (Botões)
+estacao_filtro = st.radio(
+    "Filtrar Período:",
     ["Média do Ano", "Verão", "Outono", "Inverno", "Primavera"],
     horizontal=True
 )
 
+# Filtrar o DataFrame para o Grid
 df_grid = df.copy()
-if estacao_selecionada != "Média do Ano":
-    df_grid = df_grid[df_grid['Estacao'] == estacao_selecionada]
+if estacao_filtro != "Média do Ano":
+    df_grid = df_grid[df_grid['Estacao'] == estacao_filtro]
 
-anos_grid = [2016, 2017, 2018, 2019, 2020, 2021]
-row1 = st.columns(3)
-row2 = st.columns(3)
-colunas_grid = row1 + row2
+# Grid 2x3
+anos = [2016, 2017, 2018, 2019, 2020, 2021]
+colunas = st.columns(3) # Cria 3 colunas iniciais
 
-for i, ano in enumerate(anos_grid):
-    with colunas_grid[i]:
+# Loop para criar os 6 mapas
+for i, ano in enumerate(anos):
+    # Lógica para distribuir nas colunas (0, 1, 2)
+    col_idx = i % 3
+    
+    with colunas[col_idx]:
+        # Filtrar ano
         df_ano = df_grid[df_grid['Ano'] == ano]
-        df_mapa_ano = df_ano.groupby('state')[var_col].mean().reset_index()
+        # Calcular média por estado
+        df_mapa = df_ano.groupby('state')[var_col].mean().reset_index()
         
-        if not df_mapa_ano.empty:
+        if not df_mapa.empty:
             fig = px.choropleth(
-                df_mapa_ano,
+                df_mapa,
                 geojson=geojson_brasil,
                 locations='state',
                 featureidkey="properties.sigla",
                 color=var_col,
                 color_continuous_scale=escala,
-                range_color=[min_global, max_global],
+                range_color=[min_g, max_g], # Trava a escala de cor
                 scope="south america",
                 title=f"<b>{ano}</b>"
             )
             fig.update_geos(fitbounds="locations", visible=False)
             fig.update_layout(
                 margin={"r":0,"t":30,"l":0,"b":0},
-                coloraxis_showscale=False,
-                height=200
+                height=200,
+                coloraxis_showscale=False # Esconde a barra lateral para não poluir
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info(f"Sem dados ({ano})")
-
-# Barra de cores auxiliar
-st.caption(f"Legenda: {var_label}")
-dummy_fig = px.imshow([[min_global, max_global]], color_continuous_scale=escala)
-dummy_fig.update_traces(opacity=0)
-dummy_fig.update_xaxes(visible=False)
-dummy_fig.update_yaxes(visible=False)
-dummy_fig.update_layout(height=50, margin={"r":10,"t":0,"l":10,"b":0}, coloraxis_showscale=False)
-dummy_fig.update_traces(showscale=True, colorbar=dict(title=None, orientation='h', thickness=15, y=0.5))
-st.plotly_chart(dummy_fig, use_container_width=True)
-
+            st.warning(f"{ano}: Sem dados")
 
 st.markdown("---")
 
-
 # ==============================================================================
-# SEÇÃO 2: MAPA ANIMADO (OTIMIZADO / SEM LAG)
+# PARTE 2: MAPA ANIMADO (PLAYER NATIVO - SEM TRAVAR)
 # ==============================================================================
-st.markdown("### 🎞️ Evolução Histórica (Player Nativo)")
-st.info("💡 Use o botão 'Play' no canto inferior esquerdo do mapa para iniciar a animação suave.")
+st.subheader("🎞️ Linha do Tempo Evolutiva")
+st.info("Aperte o **Play** abaixo para ver a evolução mês a mês sem travamentos.")
 
-# 1. Preparar os dados agregados para animação
-# Agrupamos por Estado e Mês de uma vez só
+# 1. Preparar dados para animação (Agrupar por Estado e Mês)
+# Precisamos garantir que todos os meses tenham formato de texto para o Plotly ordenar
 df_animacao = df.groupby(['state', 'Mes_Ano'])[var_col].mean().reset_index()
-
-# Ordenar por data para a animação seguir a linha do tempo correta
 df_animacao = df_animacao.sort_values('Mes_Ano')
 
-# 2. Criar o gráfico com animation_frame
-# O segredo está aqui: passamos TODOS os dados para o Plotly e dizemos
-# "Use a coluna Mes_Ano para criar os quadros da animação"
-fig_animada = px.choropleth(
+# 2. Criar gráfico com animation_frame (Isso roda no navegador do usuário)
+fig_anim = px.choropleth(
     df_animacao,
     geojson=geojson_brasil,
     locations='state',
     featureidkey="properties.sigla",
     color=var_col,
-    animation_frame="Mes_Ano", # <--- CRIA A BARRA DE TEMPO AUTOMÁTICA
+    animation_frame="Mes_Ano", # <--- O SEGREDO DA VELOCIDADE ESTÁ AQUI
     color_continuous_scale=escala,
-    range_color=[min_global, max_global], # Fixa a escala
+    range_color=[min_g, max_g],
     scope="south america",
     title=f"Evolução Temporal: {var_label}",
     hover_data={var_col:':.2f'}
 )
 
-# 3. Ajustes de Performance e Estética
-fig_animada.update_geos(
-    fitbounds="locations", 
-    visible=False
-)
-fig_animada.update_layout(
-    height=700, # Mapa grande
+# 3. Ajustes Finais
+fig_anim.update_geos(fitbounds="locations", visible=False)
+fig_anim.update_layout(
+    height=600,
     margin={"r":0,"t":50,"l":0,"b":0},
-    # Ajustar a velocidade da animação
-    updatemenus=[{
-        "type": "buttons",
-        "showactive": False,
-        "buttons": [{
-            "label": "Play",
-            "method": "animate",
-            "args": [None, {"frame": {"duration": 400, "redraw": True}, "fromcurrent": True}] 
-            # duration 400ms = um pouco mais rápido que meio segundo por mês
-        }]
-    }]
+    coloraxis_colorbar=dict(
+        title=None, 
+        orientation="h", 
+        y=-0.1 # Barra de cores horizontal embaixo
+    ),
+    sliders=[{"pad": {"t": 30}}] # Espaço para o slider não encostar no mapa
 )
 
-# Posicionar a barra de tempo (slider)
-fig_animada["layout"]["sliders"][0]["pad"] = {"t": 20} 
+# Ajustar velocidade da animação (frame duration em milissegundos)
+fig_anim.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 300
 
-st.plotly_chart(fig_animada, use_container_width=True)
+st.plotly_chart(fig_anim, use_container_width=True)
