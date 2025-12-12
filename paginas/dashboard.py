@@ -35,9 +35,9 @@ cols_numericas = {
     'Chuva Média (mm)': 'chuva_media_acumulada', # media semanal da soma de chuva em todas as estações
     'Temperatura Média (C)': 'temperatura_media',
     'Umidade Média (%)': 'umidade_media', 
-    'Vento Médio': 'vento_medio_kmh', 
-    'Pressão Média': 'pressao_media_inHg',
-    'Radiação Média': 'radiacao_media'
+    'Vento Médio (Km/h)': 'vento_medio_kmh', 
+    'Pressão Média (inHg)': 'pressao_media_inHg',
+    'Radiação Média (Kj/m²)': 'radiacao_media'
 }
 
 st.subheader("Configuração da Análise")
@@ -45,10 +45,10 @@ st.subheader("Configuração da Análise")
 # O usuário escolhe a variável
 var_label = st.selectbox(
     "Escolha a variável para analisar:",
-    options=list(cols_numericas.keys()),
-    index=0
+    options=cols_numericas.keys() 
 )
 
+# 2. Pega a FECHADURA/VALOR (o nome técnico, ex: "chuva_media")
 var_coluna = cols_numericas[var_label]
 
 st.markdown("---")
@@ -123,23 +123,20 @@ fig_box = px.box(
     y=var_coluna, 
     color=cor_grafico, 
     title=f"Boxplot de {var_label}{sulfixo_titulo}",
-)
-
-if not estados_filtro:
-    fig_box.update_layout(showlegend=False, xaxis_title="Global")
-
-# --- FORÇAR PRETO ABSOLUTO ---
-fig_box.update_layout(
     xaxis=dict(
-        fixedrange=True
-    ),
+        fixedrange=True,
+        title = "Estados"
+        ),
     yaxis=dict(
-        fixedrange=True
+        fixedrange=True,
+        title = f"{var_label}"
     ),
     showlegend=False
 )
 
-# --- EXIBIÇÃO ---
+if not estados_filtro:
+    fig_box.update_layout(xaxis_title="Global")
+
 st.plotly_chart(
     fig_box, 
     use_container_width=True, 
