@@ -283,7 +283,6 @@ else:
                 color="region", # Mantém cor da região para referência
                 title=f"Distribuição"
             )
-            fig_box_est.update_layout(xaxis={'categoryorder':'total descending'})
             st.plotly_chart(fig_box_est, use_container_width=True)
         else:
             st.info("Selecione estados para ver o boxplot.")
