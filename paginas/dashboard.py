@@ -133,12 +133,10 @@ fig_box.update_layout(
     xaxis=dict(
         fixedrange=True,
         tickfont=dict(color='black'),   
-        title_font=dict(color='black')  
     ),
     yaxis=dict(
         fixedrange=True,
         tickfont=dict(color='black'),   
-        title_font=dict(color='black')  
     ),
     showlegend=False
 )
