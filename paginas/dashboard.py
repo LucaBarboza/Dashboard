@@ -100,7 +100,6 @@ else:
             markers=True
         )
         fig_line_reg.update_layout(
-            showlegend=False,
             xaxis=dict(
                 fixedrange=True,
                 title="Regiões"
