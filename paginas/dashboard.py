@@ -133,9 +133,7 @@ fig_box = px.box(
     )
 )
 
-fig_box.update_layout(
-    showlegend=False
-)
+fig_box.update_layout(showlegend=False)
 
 if not estados_filtro:
     fig_box.update_layout(xaxis_title="Global")
