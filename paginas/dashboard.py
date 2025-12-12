@@ -123,7 +123,6 @@ fig_box = px.box(
     y=var_coluna, 
     color=cor_grafico, 
     title=f"Boxplot de {var_label}{sulfixo_titulo}",
-    template="plotly_white"
 )
 
 if not estados_filtro:
@@ -148,7 +147,7 @@ fig_box.update_layout(
 st.plotly_chart(
     fig_box, 
     use_container_width=True, 
-    theme=None,  
+    theme="streamlit",  
     config={
         'displaylogo': False,
         'modeBarButtonsToRemove': [
