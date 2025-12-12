@@ -65,6 +65,29 @@ else:
             color="region", 
             points="outliers"
         )
+        fig_box_reg.update_layout(
+            showlegend=False,
+            xaxis=dict(
+                fixedrange=True,
+                title="Regiões"
+            ),
+            yaxis=dict(
+                fixedrange=True,
+                title=f"{var_label}"
+            )
+        )
+        st.plotly_chart(
+            fig_box_reg, 
+            use_container_width=True, 
+            theme="streamlit",  
+            config={
+                'displaylogo': False,
+                'modeBarButtonsToRemove': [
+                    'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+                    'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
+                ]
+            }
+        )
         st.plotly_chart(fig_box_reg, use_container_width=True)
             
         # === Linhas ===
@@ -76,6 +99,29 @@ else:
             y=var_coluna, 
             color="region",
             markers=True
+        )
+        fig_line_reg.update_layout(
+            showlegend=False,
+            xaxis=dict(
+                fixedrange=True,
+                title="Regiões"
+            ),
+            yaxis=dict(
+                fixedrange=True,
+                title=f"{var_label}"
+            )
+        )
+        st.plotly_chart(
+            fig_line_reg, 
+            use_container_width=True, 
+            theme="streamlit",  
+            config={
+                'displaylogo': False,
+                'modeBarButtonsToRemove': [
+                    'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+                    'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
+                ]
+            }
         )
         st.plotly_chart(fig_line_reg, use_container_width=True)
 
@@ -90,7 +136,7 @@ else:
             estados_disponiveis, 
             default=estados_disponiveis
         )
-        
+
         # Cria DF para esta aba
         if estados_sel:
             df_estado = df_regiao[df_regiao['state'].isin(estados_sel)]
@@ -154,6 +200,29 @@ else:
                     y=var_coluna, 
                     markers=True,
                     title=f"Evolução Isolada: {estado_destaque}"
+                )
+                fig_dest.update_layout(
+                    showlegend=False,
+                    xaxis=dict(
+                        fixedrange=True,
+                        title="Regiões"
+                    ),
+                    yaxis=dict(
+                        fixedrange=True,
+                        title=f"{var_label}"
+                    )
+                )
+                st.plotly_chart(
+                    fig_dest, 
+                    use_container_width=True, 
+                    theme="streamlit",  
+                    config={
+                        'displaylogo': False,
+                        'modeBarButtonsToRemove': [
+                            'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+                            'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
+                        ]
+                    }
                 )
                 fig_dest.update_traces(line_color='#FF4B4B', line_width=3) 
                 st.plotly_chart(fig_dest, use_container_width=True)
