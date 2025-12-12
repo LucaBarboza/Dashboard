@@ -11,3 +11,5 @@ folium
 streamlit-folium
 branca
 scipy
+scikit-learn
+statsmodels
