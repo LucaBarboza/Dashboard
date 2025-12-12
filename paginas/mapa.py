@@ -13,8 +13,7 @@ st.header("🇧🇷 Mapa Climático do Brasil (Sazonal)")
 def carregar_dados_brasil():
     try:
         # Lê o novo arquivo CSV
-        df = pd.read_csv("clima_brasil_semanal_refinado_2015.csv")
-        
+        df = pd.read_csv("dataframe/clima_brasil_semanal_refinado_2015.csv")        
         # Converter data (semana_ref)
         df['semana_ref'] = pd.to_datetime(df['semana_ref'])
         
