@@ -81,11 +81,12 @@ else:
     
     tabela_final = tabela_final.sort_values(by='mean', ascending=False)
 
+altura_dinamica = (len(tabela_final) * 35) + 38
 # EXIBIÇÃO DA TABELA
 st.dataframe(
     tabela_final,
     use_container_width=True,
-    height=1000,
+    height=altura_dinamica,
     hide_index=True,
     column_config={
         "state": st.column_config.TextColumn("Estado", width="large"), # Adaptação de rótulo
