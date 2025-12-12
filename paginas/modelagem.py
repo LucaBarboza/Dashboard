@@ -4,11 +4,14 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.linear_model import LinearRegression
+from sklearn.cluster import KMeans
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
-st.header("🤖 Modelagem e Previsões (Machine Learning)")
-st.markdown("Aqui utilizamos algoritmos de aprendizado de máquina para entender impactos e prever o futuro.")
+st.header("🤖 Inteligência Artificial e Modelagem")
+st.markdown("Utilizando algoritmos Supervisionados (Previsão) e Não Supervisionados (Descoberta de Padrões).")
 
 # --- CARREGAMENTO DE DADOS ---
 @st.cache_data
@@ -22,177 +25,185 @@ def carregar_dados_ml():
         df['semana_ref'] = pd.to_datetime(df['semana_ref'])
         df['ano'] = df['semana_ref'].dt.year
         df['mes'] = df['semana_ref'].dt.month
-        # Cria uma coluna numérica para o tempo (necessário para regressão temporal)
         df['tempo_ordinal'] = df['semana_ref'].apply(lambda x: x.toordinal())
     
-    # Remove linhas com NaNs para não quebrar o modelo
     cols_numericas = ['chuva_media_semanal', 'temperatura_media', 'umidade_media', 
                       'vento_medio', 'pressao_media', 'radiacao_media']
-    # Mapeamento para nomes bonitos
-    mapa = {c: c.replace('_media', '').replace('_medio', '').replace('_semanal', '').capitalize() for c in cols_numericas}
+    # Remove NaNs
     df = df.dropna(subset=cols_numericas)
+    
+    # Mapeamento de nomes
+    mapa = {c: c.replace('_media', '').replace('_medio', '').replace('_semanal', '').capitalize() for c in cols_numericas}
+    
     return df, mapa
 
+# Carrega GeoJSON para o mapa de clusters (reaproveitando a função se possível, ou simplificando)
+@st.cache_data
+def carregar_geojson_ml():
+    import requests
+    url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
+    try:
+        return requests.get(url, timeout=5).json()
+    except:
+        return None
+
 df, mapa_nomes = carregar_dados_ml()
+geojson = carregar_geojson_ml()
 
-tab1, tab2 = st.tabs(["📉 Regressão (Influência)", "🔮 Previsão Temporal (Validada)"])
+# --- ABAS DA PÁGINA ---
+tab1, tab2, tab3 = st.tabs([
+    "🔍 Clustering (Novas Regiões)", 
+    "🚨 Detecção de Anomalias", 
+    "🔮 Previsão (Séries Temporais)"
+])
 
-# --- TAB 1: REGRESSÃO LINEAR MÚLTIPLA ---
+# ==============================================================================
+# TAB 1: CLUSTERING (K-MEANS)
+# ==============================================================================
 with tab1:
-    st.subheader("Quem influencia quem?")
-    st.info("Descubra como variáveis explicativas (X) impactam uma variável alvo (Y).")
+    st.subheader("Redefinindo o Brasil Climático")
+    st.markdown("""
+    A IA utiliza o algoritmo **K-Means** para agrupar estados com comportamentos climáticos semelhantes, 
+    ignorando as fronteiras geográficas oficiais.
+    """)
     
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([1, 3])
+    
     with col1:
-        target = st.selectbox("🎯 Variável Alvo (Y):", list(mapa_nomes.keys()), format_func=lambda x: mapa_nomes[x], index=1)
-    with col2:
-        features_possiveis = [c for c in mapa_nomes.keys() if c != target]
-        features = st.multiselect("📊 Variáveis Explicativas (X):", features_possiveis, default=[features_possiveis[0]])
+        n_clusters = st.slider("Número de Grupos (Clusters):", 2, 8, 4)
+        features_cluster = st.multiselect(
+            "Variáveis para Agrupar:", 
+            list(mapa_nomes.keys()),
+            default=['temperatura_media', 'chuva_media_semanal', 'umidade_media'],
+            format_func=lambda x: mapa_nomes[x]
+        )
+        btn_cluster = st.button("Rodar K-Means")
+        
+    if btn_cluster:
+        # 1. Preparar dados (Agrupando média histórica por estado)
+        df_estado = df.groupby('state')[features_cluster].mean().reset_index()
+        
+        # 2. Normalizar (Importante para o K-Means não dar peso errado)
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(df_estado[features_cluster])
+        
+        # 3. Rodar IA
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        df_estado['Cluster'] = kmeans.fit_predict(X_scaled)
+        df_estado['Cluster'] = df_estado['Cluster'].astype(str) # Para virar categoria no mapa
+        
+        # 4. Mapa
+        with col2:
+            if geojson:
+                fig_map = px.choropleth_mapbox(
+                    df_estado,
+                    geojson=geojson,
+                    locations='state',
+                    featureidkey="properties.sigla",
+                    color='Cluster',
+                    mapbox_style="carto-positron",
+                    zoom=3, center={"lat": -15.7, "lon": -52},
+                    title="Grupos Climáticos Identificados pela IA",
+                    color_discrete_sequence=px.colors.qualitative.Bold
+                )
+                fig_map.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
+                st.plotly_chart(fig_map, use_container_width=True)
+            else:
+                st.warning("Mapa não carregou, mostrando tabela.")
+        
+        st.markdown("#### Características de cada Grupo")
+        # Mostra a média das variáveis para cada cluster para interpretar
+        resumo_clusters = df_estado.groupby('Cluster')[features_cluster].mean().reset_index()
+        # Formatação bonita
+        st.dataframe(resumo_clusters.style.background_gradient(cmap='Blues'), use_container_width=True)
+        st.caption("Nota: O K-Means agrupa estados matematicamente 'próximos'. Veja como ele pode juntar estados do Norte com partes do Nordeste, por exemplo.")
 
-    if features:
-        X = df[features]
-        y = df[target]
-        
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        
-        model = LinearRegression()
-        model.fit(X_train, y_train)
-        
-        y_pred = model.predict(X_test)
-        r2 = r2_score(y_test, y_pred)
-        mae = mean_absolute_error(y_test, y_pred)
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("R² (Explicação)", f"{r2:.2%}", help="Quanto da variação do Y é explicado pelo X.")
-        c2.metric("Erro Médio (MAE)", f"{mae:.2f}", help="Erro médio absoluto na unidade da variável.")
-        
-        coef_df = pd.DataFrame({'Variável': features, 'Impacto (Coef)': model.coef_})
-        coef_df = coef_df.sort_values(by='Impacto (Coef)', key=abs, ascending=False)
-        
-        st.markdown("#### ⚖️ Peso de cada Variável")
-        st.dataframe(coef_df, hide_index=True, use_container_width=True)
-        
-        fig = px.scatter(x=y_test, y=y_pred, labels={'x': 'Valor Real', 'y': 'Valor Previsto pelo Modelo'}, opacity=0.5)
-        fig.add_shape(type="line", line=dict(dash='dash'), x0=y.min(), y0=y.max(), x1=y.min(), y1=y.max())
-        st.plotly_chart(fig, use_container_width=True)
-
-# --- TAB 2: SÉRIES TEMPORAIS (VALIDADA) ---
+# ==============================================================================
+# TAB 2: DETECÇÃO DE ANOMALIAS (ISOLATION FOREST)
+# ==============================================================================
 with tab2:
-    st.subheader("🔮 Previsão de Futuro com Backtesting")
-    st.markdown("O modelo aprende Tendência (Anos) e Sazonalidade (Meses).")
+    st.subheader("Caçador de Extremos Climáticos")
+    st.markdown("""
+    O algoritmo **Isolation Forest** analisa todo o histórico para encontrar semanas 'bizarras' 
+    (outliers) que fogem completamente do padrão normal.
+    """)
     
-    var_time = st.selectbox("O que queremos prever?", list(mapa_nomes.keys()), format_func=lambda x: mapa_nomes[x], key='time_var')
+    col_ano_a, col_ano_b = st.columns(2)
+    contamination = col_ano_a.slider("Sensibilidade (% de Anomalias):", 1, 10, 2) / 100
+    estado_anomalia = col_ano_b.selectbox("Filtrar Estado:", df['state'].unique())
     
-    estados = sorted(df['state'].unique())
-    estado_filtro = st.selectbox("Filtrar por Estado:", estados)
+    if st.button("Detectar Anomalias"):
+        df_iso = df[df['state'] == estado_anomalia].copy()
+        features_iso = ['temperatura_media', 'chuva_media_semanal', 'umidade_media', 'vento_medio']
+        
+        # IA Rodando
+        iso = IsolationForest(contamination=contamination, random_state=42)
+        df_iso['anomalia'] = iso.fit_predict(df_iso[features_iso])
+        
+        # -1 é anomalia, 1 é normal
+        anomalias = df_iso[df_iso['anomalia'] == -1]
+        
+        st.metric("Semanas Anômalas Encontradas", len(anomalias))
+        
+        # Gráfico Scatter para mostrar onde estão as anomalias
+        fig_iso = px.scatter(
+            df_iso, x='semana_ref', y='temperatura_media', 
+            color=df_iso['anomalia'].astype(str),
+            color_discrete_map={'-1': 'red', '1': 'blue'},
+            title=f"Linha do Tempo: Pontos Vermelhos são Anomalias em {estado_anomalia}",
+            hover_data=features_iso
+        )
+        st.plotly_chart(fig_iso, use_container_width=True)
+        
+        st.markdown("#### Tabela dos Eventos Extremos")
+        st.dataframe(anomalias[['semana_ref'] + features_iso].sort_values('semana_ref'), use_container_width=True)
+
+# ==============================================================================
+# TAB 3: PREVISÃO TEMPORAL (MANTIDO DO ANTERIOR)
+# ==============================================================================
+with tab3:
+    st.subheader("🔮 Previsão de Futuro (Séries Temporais)")
     
-    # Preparação dos dados
+    var_time = st.selectbox("O que prever?", list(mapa_nomes.keys()), format_func=lambda x: mapa_nomes[x], key='time_var')
+    estado_filtro = st.selectbox("Estado:", sorted(df['state'].unique()), key='time_state')
+    
+    # Preparação (código otimizado da versão anterior)
     df_time = df[df['state'] == estado_filtro].copy()
     df_grouped = df_time.groupby('semana_ref')[var_time].mean().reset_index().sort_values('semana_ref')
-    
-    # Feature Engineering (Criar colunas matemáticas)
     df_grouped['dia_ordinal'] = df_grouped['semana_ref'].apply(lambda x: x.toordinal())
     df_grouped['mes'] = df_grouped['semana_ref'].dt.month
     
-    # Dummies para Sazonalidade
     meses_dummies = pd.get_dummies(df_grouped['mes'], prefix='mes').astype(int)
-    # Garante que temos todas as colunas de 1 a 12, mesmo se faltar dados
+    # Garante 12 colunas
     for i in range(1, 13):
-        if f'mes_{i}' not in meses_dummies.columns:
-            meses_dummies[f'mes_{i}'] = 0
-    meses_dummies = meses_dummies[sorted(meses_dummies.columns)] # Ordena colunas
-            
-    df_ml = pd.concat([df_grouped, meses_dummies], axis=1)
+        if f'mes_{i}' not in meses_dummies.columns: meses_dummies[f'mes_{i}'] = 0
+    meses_dummies = meses_dummies[sorted(meses_dummies.columns)]
+    
+    df_ml_t = pd.concat([df_grouped, meses_dummies], axis=1)
     features_time = ['dia_ordinal'] + list(meses_dummies.columns)
     
-    # --- 1. ETAPA DE VALIDAÇÃO (BACKTESTING) ---
-    st.markdown("---")
-    st.markdown("### 1️⃣ Validação: O modelo acerta o passado?")
-    
-    # Separamos o último ano (52 semanas) para teste
-    qtd_teste = 52
-    if len(df_ml) > qtd_teste * 2: # Só faz se tiver dados suficientes
-        train = df_ml.iloc[:-qtd_teste]
-        test = df_ml.iloc[-qtd_teste:]
-        
-        # Treina só no passado antigo
-        model_val = LinearRegression()
-        model_val.fit(train[features_time], train[var_time])
-        
-        # Tenta prever o passado recente (que ele não viu)
-        pred_val = model_val.predict(test[features_time])
-        
-        # Calcula Erro
-        mae_val = mean_absolute_error(test[var_time], pred_val)
-        rmse_val = np.sqrt(mean_squared_error(test[var_time], pred_val))
-        media_real = test[var_time].mean()
-        erro_percentual = (mae_val / media_real) * 100
-        
-        col_v1, col_v2, col_v3 = st.columns(3)
-        col_v1.metric("Erro Médio (MAE)", f"{mae_val:.2f}", help="O quanto o modelo erra em média (na mesma unidade dos dados).")
-        col_v2.metric("Margem de Erro (%)", f"{erro_percentual:.1f}%", help="O erro relativo à média dos valores.")
-        
-        if erro_percentual < 10:
-            col_v3.success("✅ Modelo Confiável")
-        elif erro_percentual < 20:
-            col_v3.warning("⚠️ Precisão Razoável")
-        else:
-            col_v3.error("❌ Modelo Instável")
-            
-        # Gráfico de Validação
-        fig_val = go.Figure()
-        fig_val.add_trace(go.Scatter(x=train['semana_ref'], y=train[var_time], name='Treino (Passado Antigo)', line=dict(color='gray')))
-        fig_val.add_trace(go.Scatter(x=test['semana_ref'], y=test[var_time], name='Realidade (Último Ano)', line=dict(color='blue')))
-        fig_val.add_trace(go.Scatter(x=test['semana_ref'], y=pred_val, name='Previsão do Modelo', line=dict(color='orange', dash='dot')))
-        fig_val.update_layout(title="Teste de Fidelidade (Backtest)", height=400)
-        st.plotly_chart(fig_val, use_container_width=True)
-        
-    else:
-        st.warning("Dados insuficientes para validação histórica segura.")
-
-    # --- 2. ETAPA DE PREVISÃO FUTURA (PRODUÇÃO) ---
-    st.markdown("---")
-    st.markdown("### 2️⃣ Previsão: Olhando para o Futuro")
-    
-    # Agora treinamos com TODOS os dados disponíveis para máxima sabedoria
+    # Treino e Previsão
     model_full = LinearRegression()
-    model_full.fit(df_ml[features_time], df_ml[var_time])
+    model_full.fit(df_ml_t[features_time], df_ml_t[var_time])
     
-    # Criar datas futuras (1 ano)
+    # Futuro
     ultima_data = df_grouped['semana_ref'].max()
     datas_futuras = [ultima_data + pd.Timedelta(days=x) for x in range(7, 365, 7)]
-    
     df_futuro = pd.DataFrame({'semana_ref': datas_futuras})
     df_futuro['dia_ordinal'] = df_futuro['semana_ref'].apply(lambda x: x.toordinal())
     df_futuro['mes'] = df_futuro['semana_ref'].dt.month
     
-    # Dummies futuro
     dummies_fut = pd.get_dummies(df_futuro['mes'], prefix='mes').astype(int)
     for col in meses_dummies.columns:
-        if col not in dummies_fut.columns:
-            dummies_fut[col] = 0
+        if col not in dummies_fut.columns: dummies_fut[col] = 0
     dummies_fut = dummies_fut[sorted(meses_dummies.columns)]
     
     X_futuro = pd.concat([df_futuro[['dia_ordinal']], dummies_fut], axis=1)
-    
-    # Prever
     y_fut = model_full.predict(X_futuro)
     
-    # Plotar
+    # Plot
     fig_fut = go.Figure()
-    fig_fut.add_trace(go.Scatter(x=df_grouped['semana_ref'], y=df_grouped[var_time], name='Histórico Completo', line=dict(color='blue')))
-    fig_fut.add_trace(go.Scatter(x=df_futuro['semana_ref'], y=y_fut, name='Previsão Futura (12 Meses)', line=dict(color='green', width=3)))
-    
-    # Intervalo de Confiança (Visual Simples baseado no MAE da validação)
-    if 'mae_val' in locals():
-        fig_fut.add_trace(go.Scatter(
-            x=list(df_futuro['semana_ref']) + list(df_futuro['semana_ref'])[::-1],
-            y=list(y_fut + mae_val) + list(y_fut - mae_val)[::-1],
-            fill='toself',
-            fillcolor='rgba(0,128,0,0.2)',
-            line=dict(color='rgba(255,255,255,0)'),
-            name='Margem de Erro Esperada'
-        ))
-
-    fig_fut.update_layout(title=f"Projeção para os Próximos 12 Meses: {mapa_nomes[var_time]} ({estado_filtro})", height=500)
+    fig_fut.add_trace(go.Scatter(x=df_grouped['semana_ref'], y=df_grouped[var_time], name='Histórico', line=dict(color='blue')))
+    fig_fut.add_trace(go.Scatter(x=df_futuro['semana_ref'], y=y_fut, name='Previsão (1 Ano)', line=dict(color='green', width=3)))
+    fig_fut.update_layout(title=f"Tendência + Sazonalidade: {mapa_nomes[var_time]} em {estado_filtro}")
     st.plotly_chart(fig_fut, use_container_width=True)
