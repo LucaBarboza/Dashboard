@@ -130,7 +130,10 @@ fig_box = px.box(
     yaxis=dict(
         fixedrange=True,
         title = f"{var_label}"
-    ),
+    )
+)
+
+fig_box.update_layout(
     showlegend=False
 )
 
