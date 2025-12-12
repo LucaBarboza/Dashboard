@@ -67,21 +67,33 @@ else:
     colors = ['#ffffe5', '#f7fcb9', '#addd8e', '#41ab5d', '#238443', '#005a32']
 
 # --- PREPARAÇÃO DO DICIONÁRIO DE ESTILOS ---
+# Em paginas/mapa.py
+
 @st.cache_data(show_spinner="Renderizando mapa temporal...")
 def gerar_mapa_timeslider(df_data, coluna, _geojson, lista_cores):
     
-    # Validação da coluna
+    # 1. Proteção: Verifica se a coluna existe
     if coluna not in df_data.columns:
+        st.error(f"Coluna '{coluna}' não encontrada no DataFrame.")
         return None, None
         
-    # 1. Criar a escala de cores (com proteção contra valores iguais)
-    min_val = df_data[coluna].min()
-    max_val = df_data[coluna].max()
+    # 2. Proteção: Pega apenas números válidos (ignora vazios/NaN) para calcular a escala
+    dados_validos = df_data[coluna].dropna()
     
-    # CORREÇÃO: Evita "Thresholds are not sorted" se min == max
+    if dados_validos.empty:
+        st.warning(f"A variável selecionada não contém dados válidos para exibição.")
+        return None, None
+
+    min_val = float(dados_validos.min())
+    max_val = float(dados_validos.max())
+    
+    # 3. Proteção CRÍTICA: Evita o erro "Thresholds not sorted"
+    # Se min == max (ex: todos os valores são 25.0), o mapa quebra.
+    # Adicionamos uma fração minúscula ao max para criar um intervalo artificial.
     if min_val >= max_val:
-        max_val = min_val + 0.001
+        max_val = min_val + 0.0001
     
+    # Cria a escala de cores
     colormap = cm.LinearColormap(
         colors=lista_cores,
         vmin=min_val,
@@ -89,20 +101,24 @@ def gerar_mapa_timeslider(df_data, coluna, _geojson, lista_cores):
         caption=var_label
     )
 
-    # 2. Construir styledict
+    # 4. Construir o dicionário de estilos
     styledict = {}
     
     for feature in _geojson['features']:
         sigla = feature['properties']['sigla']
         styledict[sigla] = {}
         
+        # Filtra o dataframe original (pode conter NaNs, então usamos fillna ou try/except)
         df_estado = df_data[df_data['state'] == sigla]
         
         for _, row in df_estado.iterrows():
+            # Se o valor for nulo, pulamos ou pintamos de cinza (aqui pulamos)
+            if pd.isna(row[coluna]):
+                continue
+                
             valor = row[coluna]
             timestamp = row['timestamp']
             
-            # Pega a cor hex
             cor_hex = colormap(valor)
             
             styledict[sigla][timestamp] = {
@@ -111,38 +127,3 @@ def gerar_mapa_timeslider(df_data, coluna, _geojson, lista_cores):
             }
     
     return styledict, colormap
-
-# Gerar dados do mapa
-try:
-    if var_col not in df.columns:
-        st.error(f"A coluna '{var_col}' não existe no DataFrame carregado. Colunas: {list(df.columns)}")
-    else:
-        style_dict, colormap = gerar_mapa_timeslider(df, var_col, geojson, colors)
-
-        if style_dict:
-            # --- CRIAÇÃO DO MAPA FOLIUM ---
-            m = folium.Map(
-                location=[-14.235, -51.925], 
-                zoom_start=4,
-                tiles="cartodbpositron"
-            )
-
-            TimeSliderChoropleth(
-                data=geojson,
-                styledict=style_dict,
-                name="Evolução Temporal",
-                overlay=True,
-                control=True,
-                show=True
-            ).add_to(m)
-
-            colormap.add_to(m)
-
-            # Exibir no Streamlit
-            st_folium(m, width=1000, height=600) # Use largura inteira fixa ou responsiva
-        else:
-            st.error("Erro ao processar o dicionário de estilos.")
-
-except Exception as e:
-    st.error(f"Erro ao gerar visualização: {e}")
-    st.info("Dica: Verifique se as siglas dos estados no CSV batem com as do GeoJSON (AC, SP, etc).")
