@@ -88,7 +88,6 @@ else:
                 ]
             }
         )
-        st.plotly_chart(fig_box_reg, use_container_width=True)
             
         # === Linhas ===
         st.markdown("**Evolução Temporal (Média das Regiões)**")
@@ -123,7 +122,6 @@ else:
                 ]
             }
         )
-        st.plotly_chart(fig_line_reg, use_container_width=True)
 
     # === ABA 2: ANÁLISE POR ESTADO ===
     with tab_est:
@@ -212,6 +210,7 @@ else:
                         title=f"{var_label}"
                     )
                 )
+                fig_dest.update_traces(line_color='#FF4B4B', line_width=3) 
                 st.plotly_chart(
                     fig_dest, 
                     use_container_width=True, 
@@ -224,5 +223,3 @@ else:
                         ]
                     }
                 )
-                fig_dest.update_traces(line_color='#FF4B4B', line_width=3) 
-                st.plotly_chart(fig_dest, use_container_width=True)
