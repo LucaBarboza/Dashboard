@@ -18,59 +18,89 @@ df = carregar_dados()
 
 # --- CONFIGURAÇÃO AUTOMÁTICA DE CORES (Novo Bloco) ---
 # Define a escala base para cada região (Códigos padrão IBGE: N, NE, CO, SE, S)
-paletas_escuras = {
-    # NE: 9 tons (Amarelo Ouro -> Laranja Escuro)
-    # Começa forte (#FDD835) para não sumir no fundo branco
+paletas_estados_matte = {
+    # NE: 9 tons (Do Verde-Limão suave -> Amarelo -> Laranja Coral)
+    # Isso garante que um estado não fique igual ao vizinho
     'NE': [
-        "#FDD835", "#FBC02D", "#F9A825", "#F57F17", "#EF6C00", 
-        "#E65100", "#BF360C", "#D84315", "#BF360C"
+        "#D4E157", # Lime (Verde Amarelado)
+        "#FFEE58", # Amarelo Canário
+        "#FDD835", # Amarelo Sol
+        "#FFCA28", # Âmbar
+        "#FFA726", # Laranja Suave
+        "#FF7043", # Coral
+        "#8D6E63", # Marrom Rosado (Terra suave)
+        "#FFCC80", # Pêssego
+        "#E6EE9C"  # Limão Pastel
     ],
-    
-    # N: 7 tons (Verde Grama -> Verde Floresta Profundo)
+
+    # N: 7 tons (Do Verde Água -> Verde Musgo suave)
     'N':  [
-        "#66BB6A", "#4CAF50", "#43A047", "#2E7D32", 
-        "#1B5E20", "#004D40", "#00332C"
+        "#4DB6AC", # Teal (Verde Azulado)
+        "#81C784", # Verde Folha
+        "#AED581", # Verde Claro
+        "#43A047", # Verde Grama (Sólido)
+        "#26A69A", # Turquesa Escuro
+        "#558B2F", # Oliva
+        "#00897B"  # Verde Petróleo Suave
     ],
-    
-    # SE: 4 tons (Azul Royal -> Azul Marinho)
+
+    # SE: 4 tons (Do Azul Céu -> Azul Aço)
     'SE': [
-        "#1E88E5", "#1976D2", "#1565C0", "#0D47A1"
+        "#4FC3F7", # Azul Celeste
+        "#64B5F6", # Azul "Baby" forte
+        "#7986CB", # Azul Índigo Suave
+        "#9575CD"  # Azul Arroxeado
     ],
-    
-    # CO: 4 tons de ROSA FORTE/MAGENTA (Pink -> Vinho Rosado)
+
+    # CO: 4 tons de ROSA (Do Salmão -> Rosa Chiclete -> Framboesa)
     'CO': [
-        "#EC407A", "#D81B60", "#AD1457", "#880E4F"
+        "#FF8A65", # Salmão Forte
+        "#F06292", # Rosa Pink Suave
+        "#BA68C8", # Rosa Orquídea
+        "#E57373"  # Vermelho Rosado
     ],
-    
-    # S: 3 tons (Roxo Médio -> Roxo Profundo)
+
+    # S: 3 tons (Do Lilás -> Roxo -> Violeta)
     'S':  [
-        "#AB47BC", "#7B1FA2", "#4A148C"
+        "#CE93D8", # Lilás
+        "#BA68C8", # Roxo Médio
+        "#9575CD"  # Violeta
     ]
 }
 
+# B. PALETA REGIÕES (Tons Pastéis Claros "Marca d'água")
+# Usados se você agrupar o gráfico por Região
+paletas_regioes_pastel = {
+    'NE': "#FFF59D", # Amarelo Manteiga
+    'N':  "#C8E6C9", # Verde Menta
+    'SE': "#BBDEFB", # Azul Nuvem
+    'CO': "#F8BBD0", # Rosa Bebê (Para combinar com o pedido)
+    'S':  "#E1BEE7"  # Lavanda
+}
+
 # ---------------------------------------------------------
-# APLICAÇÃO (A mesma lógica de antes)
+# 2. LÓGICA DE APLICAÇÃO (AUTOMÁTICA)
 # ---------------------------------------------------------
 
-# 1. Cor da Região (Pega o tom mais escuro da lista para representar a região)
-cores_regioes = {}
 unique_regions = df['region'].unique()
 
+# --- Configura Cores das REGIÕES ---
+cores_regioes = {}
 for reg in unique_regions:
-    # Se não achar a região, usa cinza escuro
-    lista_cores = paletas_escuras.get(reg, ["#424242"])
-    cores_regioes[reg] = lista_cores[-1] 
+    cores_regioes[reg] = paletas_regioes_pastel.get(reg, "#EEEEEE")
 
-# 2. Cor dos Estados (Distribui os tons)
+# --- Configura Cores dos ESTADOS ---
 cores_estados = {}
 
 for regiao in unique_regions:
-    lista_cores = paletas_escuras.get(regiao, [])
+    # Busca a paleta Matte correspondente
+    lista_cores = paletas_estados_matte.get(regiao, [])
     
-    # Ordena estados alfabeticamente para manter consistência
+    # Ordena os estados alfabeticamente
     estados_da_regiao = sorted(df[df['region'] == regiao]['state'].unique())
     
-    # Atribui cor a cor
+    # Se houver mais estados que cores (segurança), repetimos a última cor
+    # Mas como fiz as listas exatas, o zip funciona perfeito.
     for estado, cor in zip(estados_da_regiao, lista_cores):
         cores_estados[estado] = cor
 
