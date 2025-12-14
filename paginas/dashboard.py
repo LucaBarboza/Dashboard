@@ -160,7 +160,7 @@ else:
             xaxis=dict(fixedrange=True, title="Regiões"),
             yaxis=dict(fixedrange=True, title=f"{var_label}")
         )
-        fig_box_reg.update_traces(marker_opacity=1, fillcolor_opacity=1)
+        fig_box_reg.update_traces(marker_opacity=1)
         st.plotly_chart(fig_box_reg, use_container_width=True)
             
         # === Linhas ===
