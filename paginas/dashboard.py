@@ -145,6 +145,26 @@ else:
     with tab_reg:
         st.subheader(f"Análise Regional: {var_label}")
         
+        with st.expander("### 📊 Estatísticas Detalhadas por Região", expanded=False):
+            tabela_reg = df_regiao.groupby('region')[var_coluna].agg(
+                ['count', 'mean', 'std', 'min', 'max', 'median']
+            ).reset_index().sort_values(by='mean', ascending=False)
+
+            st.dataframe(
+                tabela_reg,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "region": "Região",
+                    "count": st.column_config.NumberColumn("Nº Registros", format="%d"),
+                    "mean": st.column_config.NumberColumn("Média", format="%.2f"),
+                    "std": st.column_config.NumberColumn("Desv. Padrão", format="%.2f"),
+                    "min": st.column_config.NumberColumn("Mínimo", format="%.2f"),
+                    "max": st.column_config.NumberColumn("Máximo", format="%.2f"),
+                    "median": st.column_config.NumberColumn("Mediana", format="%.2f")
+                }
+            )
+
         # === Boxplot ===
         st.markdown("**Distribuição (Boxplot)**")
         fig_box_reg = px.box(
