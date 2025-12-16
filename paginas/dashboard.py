@@ -219,12 +219,9 @@ else:
             df_estado = df_regiao
 
         with st.expander("### 📊 Estatísticas Detalhadas por Estados", expanded=False):
-            tabela_reg = df_estado[var_coluna].agg(
-                ['count', 'mean', 'std', 'min', 'max', 'median']
-            ).reset_index().sort_values(by='mean', ascending=False)
-
+            tabela_est = df_estado.groupby('state')[var_coluna].agg(['count', 'mean', 'std', 'min', 'max', 'median']).reset_index().sort_values(by='mean', ascending=False)
             st.dataframe(
-                tabela_reg,
+                tabela_est,
                 use_container_width=True,
                 hide_index=True,
                 column_config={
