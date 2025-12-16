@@ -217,7 +217,27 @@ else:
             df_estado = df_regiao[df_regiao['state'].isin(estados_sel)]
         else:
             df_estado = df_regiao
-            
+
+        with st.expander("### 📊 Estatísticas Detalhadas por Estados", expanded=False):
+            tabela_reg = df_estado[var_coluna].agg(
+                ['count', 'mean', 'std', 'min', 'max', 'median']
+            ).reset_index().sort_values(by='mean', ascending=False)
+
+            st.dataframe(
+                tabela_reg,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "state": "Estado",
+                    "count": st.column_config.NumberColumn("Nº Registros", format="%d"),
+                    "mean": st.column_config.NumberColumn("Média", format="%.2f"),
+                    "std": st.column_config.NumberColumn("Desv. Padrão", format="%.2f"),
+                    "min": st.column_config.NumberColumn("Mínimo", format="%.2f"),
+                    "max": st.column_config.NumberColumn("Máximo", format="%.2f"),
+                    "median": st.column_config.NumberColumn("Mediana", format="%.2f")
+                }
+            )
+
         # === Boxplot ===
         if not df_estado.empty:
             st.markdown("**Comparativo de Distribuição**")  
