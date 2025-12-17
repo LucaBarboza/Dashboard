@@ -64,7 +64,7 @@ cols_numericas = {
     'Radiação Média (Kj/m²)': 'radiacao_media'
 }
 
-var_label = st.selectbox("1. Escolha a Variável:", options=cols_numericas.keys())
+var_label = st.selectbox("Escolha a Variável:", options=cols_numericas.keys())
 var_coluna = cols_numericas[var_label]
 
 # --- FILTROS LATERAIS (Região e Tempo) ---
@@ -73,13 +73,14 @@ col_filtros_1, col_filtros_2 = st.columns([2, 1])
 with col_filtros_1:
     regioes_disponiveis = sorted(df['region'].unique().astype(str))
     regioes_sel = st.multiselect(
-        "2. Filtre as Regiões:", 
+        "Filtre as Regiões:", 
         regioes_disponiveis, 
         default=regioes_disponiveis
     )
 
 with col_filtros_2:
-    st.write("3. Filtro Temporal")
+    st.write("")
+    st.write("")
     usar_filtro_ano = st.checkbox("Filtrar por Ano?")
     
     # Valores padrão (Todo o dataset)
@@ -104,9 +105,6 @@ with col_filtros_2:
         df_filtrado_tempo = df[(df['Ano'] >= ano_inicio) & (df['Ano'] <= ano_fim)]
 
 # --- LÓGICA DE DADOS (CRÍTICO PARA ESTABILIDADE) ---
-
-# 1. Lista de Estados ESTÁVEL (Baseada apenas nas Regiões selecionadas, ignora o Tempo)
-# Isso impede que estados sumam do filtro se não tiverem dados no ano selecionado
 if regioes_sel:
     df_base_regiao = df[df['region'].isin(regioes_sel)]
 else:
@@ -154,7 +152,6 @@ else:
             color="region", 
             points="outliers",
             color_discrete_map=cores_regioes,
-            # ESTA É A CHAVE: Força a ordem alfabética no Eixo X
             category_orders={"region": ordem_regioes}
         )
         fig_box_reg.update_layout(showlegend=False, xaxis_title="Regiões", yaxis_title=var_label)
@@ -209,7 +206,6 @@ else:
         # === Boxplot ===
         if not df_estado.empty:
             st.markdown("**Comparativo de Distribuição**")
-            # Prepara ordem alfabética dos estados presentes
             ordem_estados = sorted(df_estado['state'].unique())
             
             fig_box_est = px.box(
@@ -219,7 +215,6 @@ else:
                 color="state",
                 title=f"Distribuição de {var_label} (por Estado)",
                 color_discrete_map=cores_estados,
-                # ESTA É A CHAVE: Força a ordem alfabética no Eixo X
                 category_orders={"state": ordem_estados}
             )
             fig_box_est.update_layout(showlegend=False, xaxis_title="Estados", yaxis_title=var_label)
