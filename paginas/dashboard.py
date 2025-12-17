@@ -70,7 +70,7 @@ cols_numericas = {
     'Radiação Média (Kj/m²)': 'radiacao_media'
 }
 
-var_label = st.selectbox("1. Escolha a Variável:", options=cols_numericas.keys())
+var_label = st.selectbox("Escolha a Variável:", options=cols_numericas.keys())
 var_coluna = cols_numericas[var_label]
 
 # --- FILTROS LATERAIS (Região e Tempo) ---
@@ -79,14 +79,14 @@ col_filtros_1, col_filtros_2 = st.columns([2, 1])
 with col_filtros_1:
     regioes_disponiveis = sorted(df['region'].unique().astype(str))
     regioes_sel = st.multiselect(
-        "2. Filtre as Regiões:", 
+        "Filtre as Regiões:", 
         regioes_disponiveis, 
         default=regioes_disponiveis
     )
 
 with col_filtros_2:
     # --- NOVO BLOCO: FILTRO APENAS POR ANO ---
-    st.write("3. Filtro Temporal")
+    st.write("Filtro Temporal")
     usar_filtro_ano = st.checkbox("Deseja filtrar o ano?")
     
     # Define valores padrão (todos os dados)
