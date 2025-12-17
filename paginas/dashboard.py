@@ -220,9 +220,12 @@ else:
 
         with st.expander("### 📊 Estatísticas Detalhadas por Estados", expanded=False):
             tabela_est = df_estado.groupby('state')[var_coluna].agg(['count', 'mean', 'std', 'min', 'max', 'median']).reset_index().sort_values(by='mean', ascending=False)
+            altura_est = (len(tabela_est) + 1) * 35 + 3
+
             st.dataframe(
                 tabela_est,
                 use_container_width=True,
+                height=altura_est,
                 hide_index=True,
                 column_config={
                     "state": "Estado",
