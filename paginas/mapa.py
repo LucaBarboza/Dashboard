@@ -10,7 +10,7 @@ config_padrao = {
     'modeBarButtonsToRemove': [
         'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
         'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d',
-        'toImage' # Opcional: remove botão de baixar imagem se quiser limpar mais
+        'toImage', 'toggleHover'
     ]
 }
 
@@ -136,7 +136,7 @@ fig = px.choropleth_mapbox(
     height=700
 )
 
-# Ajustes de Layout (Margens, Velocidade e Botões)
+# Ajustes de Layout (Margens, Velocidade, Botões e TRAVAMENTO)
 fig.update_layout(
     dragmode=False, # <--- TRAVA O ARRASTO (PAN) DO MAPA
     margin={"r":0,"t":50,"l":0,"b":0},
@@ -171,13 +171,9 @@ fig.update_layout(
     ]
 )
 
-# Renderização com Configuração de Travamento
+# Renderização com Configuração de Travamento (Sem scroll zoom, sem botões de zoom)
 st.plotly_chart(fig, use_container_width=True, config=config_padrao)
 
-# Tabela de Dados
-df_pivot = df_animacao.pivot(index='state', columns='ano', values=var_col)
-
-altura_tab_map = (len(df_pivot) + 1) * 35 + 3
-
-with st.expander("Ver dados desta animação"):
-    st.dataframe(df_pivot, height=altura_tab_map)
+# Tabela de Dados (Opcional)
+with st.expander("Ver dados brutos desta animação"):
+    st.dataframe(df_animacao.pivot(index='state', columns='ano', values=var_col))
