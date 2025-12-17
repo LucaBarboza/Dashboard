@@ -114,9 +114,9 @@ fig = px.choropleth_mapbox(
     locations='state',
     featureidkey="properties.sigla",
     color=var_col,
-    animation_frame="ano", # <--- AQUI ESTÁ A MÁGICA (Cria o Player)
+    animation_frame="ano", # Isso já cria o Play automático
     color_continuous_scale=escala,
-    range_color=[min_val, max_val], # Trava a escala de cores
+    range_color=[min_val, max_val],
     mapbox_style="carto-positron",
     zoom=3.5,
     center={"lat": -15.7, "lon": -52},
@@ -125,20 +125,19 @@ fig = px.choropleth_mapbox(
     height=700
 )
 
-# Ajustes de Layout (Margens e Velocidade)
+# Ajustes de Layout
 fig.update_layout(
     margin={"r":0,"t":50,"l":0,"b":0},
     coloraxis_colorbar=dict(title=var_label),
-    updatemenus=[dict(type='buttons', showactive=False,
-    y=0, x=0, xanchor='right', yanchor='top', pad=dict(t=0, r=10),
-    buttons=[dict(label='Play',
-                  method='animate',
-                  args=[None, dict(frame=dict(duration=800, redraw=True), 
-                                   fromcurrent=True)])])] # Duration = Velocidade (ms)
+    # REMOVIDO: updatemenus=[...] (Isso causava o botão duplo)
 )
+
+# --- AJUSTE DE VELOCIDADE ---
+fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 800
+fig.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 200 # Suavidade da transição
 
 st.plotly_chart(fig, use_container_width=True)
 
-# Tabela de Dados (Opcional)
+# Tabela de Dados
 with st.expander("Ver dados brutos desta animação"):
     st.dataframe(df_animacao.pivot(index='state', columns='ano', values=var_col))
