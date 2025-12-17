@@ -5,6 +5,15 @@ import plotly.express as px
 # 1. Configuração da Página
 st.set_page_config(page_title="Análise Descritiva - Clima Brasil", layout="wide")
 
+# --- CONFIGURAÇÃO PADRÃO DOS GRÁFICOS (Recuperado) ---
+config_padrao = {
+    'displaylogo': False,
+    'modeBarButtonsToRemove': [
+        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+        'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
+    ]
+}
+
 # 2. Carregamento de Dados
 @st.cache_data
 def carregar_dados():
@@ -64,7 +73,7 @@ cols_numericas = {
     'Radiação Média (Kj/m²)': 'radiacao_media'
 }
 
-var_label = st.selectbox("Escolha a Variável:", options=cols_numericas.keys())
+var_label = st.selectbox("1. Escolha a Variável:", options=cols_numericas.keys())
 var_coluna = cols_numericas[var_label]
 
 # --- FILTROS LATERAIS (Região e Tempo) ---
@@ -73,14 +82,13 @@ col_filtros_1, col_filtros_2 = st.columns([2, 1])
 with col_filtros_1:
     regioes_disponiveis = sorted(df['region'].unique().astype(str))
     regioes_sel = st.multiselect(
-        "Filtre as Regiões:", 
+        "2. Filtre as Regiões:", 
         regioes_disponiveis, 
         default=regioes_disponiveis
     )
 
 with col_filtros_2:
-    st.write("")
-    st.write("")
+    st.write("3. Filtro Temporal")
     usar_filtro_ano = st.checkbox("Filtrar por Ano?")
     
     # Valores padrão (Todo o dataset)
@@ -104,10 +112,9 @@ with col_filtros_2:
         # Aplica filtro de tempo
         df_filtrado_tempo = df[(df['Ano'] >= ano_inicio) & (df['Ano'] <= ano_fim)]
 
-# --- LÓGICA DE DADOS (CRÍTICO PARA ESTABILIDADE) ---
+# --- LÓGICA DE DADOS ---
 
 # 1. Lista de Estados ESTÁVEL (Baseada apenas nas Regiões selecionadas, ignora o Tempo)
-# Isso impede que estados sumam do filtro se não tiverem dados no ano selecionado
 if regioes_sel:
     df_base_regiao = df[df['region'].isin(regioes_sel)]
 else:
@@ -146,7 +153,7 @@ else:
                 column_config={"region": "Região", "mean": st.column_config.NumberColumn("Média", format="%.2f")}
             )
 
-        # === Boxplot ===
+        # === Boxplot (Região) ===
         st.markdown("**Distribuição (Boxplot)**")
         fig_box_reg = px.box(
             df_regiao, 
@@ -155,13 +162,17 @@ else:
             color="region", 
             points="outliers",
             color_discrete_map=cores_regioes,
-            # ESTA É A CHAVE: Força a ordem alfabética no Eixo X
             category_orders={"region": ordem_regioes}
         )
-        fig_box_reg.update_layout(showlegend=False, xaxis_title="Regiões", yaxis_title=var_label)
-        st.plotly_chart(fig_box_reg, use_container_width=True)
+        # CONFIGURAÇÃO DE LAYOUT TRAVADO
+        fig_box_reg.update_layout(
+            showlegend=False, 
+            xaxis=dict(fixedrange=True, title="Regiões"), 
+            yaxis=dict(fixedrange=True, title=var_label)
+        )
+        st.plotly_chart(fig_box_reg, use_container_width=True, config=config_padrao)
             
-        # === Linhas ===
+        # === Linhas (Região) ===
         st.markdown("**Evolução Temporal (Média das Regiões)**")
         df_line_reg = df_regiao.groupby(['Data_Dia', 'region'])[var_coluna].mean().reset_index()
         
@@ -174,14 +185,18 @@ else:
             color_discrete_map=cores_regioes,
             category_orders={"region": ordem_regioes}
         )
-        fig_line_reg.update_layout(xaxis_title="Data", yaxis_title=var_label)
-        st.plotly_chart(fig_line_reg, use_container_width=True)
+        # CONFIGURAÇÃO DE LAYOUT TRAVADO
+        fig_line_reg.update_layout(
+            xaxis=dict(fixedrange=True, title="Data"), 
+            yaxis=dict(fixedrange=True, title=var_label)
+        )
+        st.plotly_chart(fig_line_reg, use_container_width=True, config=config_padrao)
 
     # === ABA 2: ANÁLISE POR ESTADO ===
     with tab_est:
         st.subheader(f"Análise Estadual: {var_label}")
 
-        # Filtro de Estado (Usa df_base_regiao para estabilidade da lista)
+        # Filtro de Estado
         estados_disponiveis = sorted(df_base_regiao['state'].unique().astype(str))
         estados_sel = st.multiselect(
             "3. Filtre os Estados (Opcional):", 
@@ -189,7 +204,6 @@ else:
             default=estados_disponiveis
         )
 
-        # Filtra os dados de tempo com os estados selecionados
         if estados_sel:
             df_estado = df_regiao[df_regiao['state'].isin(estados_sel)]
         else:
@@ -207,10 +221,9 @@ else:
                 column_config={"state": "Estado", "mean": st.column_config.NumberColumn("Média", format="%.2f")}
             )
 
-        # === Boxplot ===
+        # === Boxplot (Estado) ===
         if not df_estado.empty:
             st.markdown("**Comparativo de Distribuição**")
-            # Prepara ordem alfabética dos estados presentes
             ordem_estados = sorted(df_estado['state'].unique())
             
             fig_box_est = px.box(
@@ -220,19 +233,22 @@ else:
                 color="state",
                 title=f"Distribuição de {var_label} (por Estado)",
                 color_discrete_map=cores_estados,
-                # ESTA É A CHAVE: Força a ordem alfabética no Eixo X
                 category_orders={"state": ordem_estados}
             )
-            fig_box_est.update_layout(showlegend=False, xaxis_title="Estados", yaxis_title=var_label)
-            st.plotly_chart(fig_box_est, use_container_width=True)
+            # CONFIGURAÇÃO DE LAYOUT TRAVADO
+            fig_box_est.update_layout(
+                showlegend=False, 
+                xaxis=dict(fixedrange=True, title="Estados"), 
+                yaxis=dict(fixedrange=True, title=var_label)
+            )
+            st.plotly_chart(fig_box_est, use_container_width=True, config=config_padrao)
         else:
             st.info("Sem dados para exibir no Boxplot.")
         
-        # Destaque Individual
+        # === Linha (Individual) ===
         st.markdown("**🔍 Detalhe Individual (Foco em 1 Estado)**")
         col_sel, col_graph = st.columns([1, 3])
         with col_sel:
-            # Lista estável
             estado_destaque = st.selectbox(
                 "Selecione um estado para destacar:", 
                 estados_disponiveis,
@@ -255,8 +271,14 @@ else:
                     
                     cor_estado = cores_estados.get(estado_destaque, '#FF4B4B')
                     fig_dest.update_traces(line_color=cor_estado, line_width=3)
-                    fig_dest.update_layout(showlegend=False, xaxis_title="Data", yaxis_title=var_label)
                     
-                    st.plotly_chart(fig_dest, use_container_width=True)
+                    # CONFIGURAÇÃO DE LAYOUT TRAVADO
+                    fig_dest.update_layout(
+                        showlegend=False, 
+                        xaxis=dict(fixedrange=True, title="Data"), 
+                        yaxis=dict(fixedrange=True, title=var_label)
+                    )
+                    
+                    st.plotly_chart(fig_dest, use_container_width=True, config=config_padrao)
                 else:
                     st.warning(f"Não há dados para {estado_destaque} no período selecionado.")
