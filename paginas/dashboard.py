@@ -15,20 +15,10 @@ def carregar_dados():
 
 df = carregar_dados()
 
-# --- CONFIGURAÇÃO PADRÃO DE PLOTLY (Reutilizável) ---
-# Define os botões que serão removidos de todos os gráficos
-config_padrao = {
-    'displaylogo': False,
-    'modeBarButtonsToRemove': [
-        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
-        'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
-    ]
-}
-
 # --- TÍTULO ---
 st.title("Dashboard Climático")
 
-# --- FILTROS GLOBAIS (EM CIMA DA PÁGINA) ---
+# --- CONFIGURAÇÃO (EM CIMA DA PÁGINA) ---
 col_var, col_reg = st.columns([1, 2])
 
 cols_numericas = {
@@ -81,16 +71,11 @@ else:
                 color="region", 
                 points="outliers"
             )
-            # Aplica config padrão
-            fig_box_reg.update_layout(
-                xaxis=dict(fixedrange=True, title="Região"),
-                yaxis=dict(fixedrange=True, title=var_label),
-                showlegend=False
-            )
-            st.plotly_chart(fig_box_reg, use_container_width=True, theme="streamlit", config=config_padrao)
+            st.plotly_chart(fig_box_reg, use_container_width=True)
             
         with col2:
             st.markdown("**Evolução Temporal (Média das Regiões)**")
+            # Agrupa por dia e região
             df_line_reg = df_regiao.groupby(['Data_Dia', 'region'])[var_coluna].mean().reset_index()
             
             fig_line_reg = px.line(
@@ -100,12 +85,7 @@ else:
                 color="region",
                 markers=True
             )
-            # Aplica config padrão
-            fig_line_reg.update_layout(
-                xaxis=dict(fixedrange=True, title="Data"),
-                yaxis=dict(fixedrange=True, title=var_label)
-            )
-            st.plotly_chart(fig_line_reg, use_container_width=True, theme="streamlit", config=config_padrao)
+            st.plotly_chart(fig_line_reg, use_container_width=True)
 
         # --- TABELA DE ESTATÍSTICAS POR REGIÃO ---
         with st.expander("### 📊 Estatísticas Detalhadas por Região", expanded=False):
@@ -113,9 +93,13 @@ else:
                 ['count', 'mean', 'std', 'min', 'max', 'median']
             ).reset_index().sort_values(by='mean', ascending=False)
 
+            # Cálculo de altura dinâmica
+            altura_reg = (len(tabela_reg) + 1) * 35 + 3
+
             st.dataframe(
                 tabela_reg,
                 use_container_width=True,
+                height=altura_reg, # Altura ajustada
                 hide_index=True,
                 column_config={
                     "region": "Região",
@@ -156,22 +140,35 @@ else:
                     df_estado, 
                     x="state", 
                     y=var_coluna, 
-                    color="state", 
-                    title=f"Distribuição de {var_label}"
+                    color="region", 
+                    title=f"Distribuição de {var_label} (por Estado)"
                 )
-                # Aplica config padrão + eixos travados
+
                 fig_box_est.update_layout(
                     showlegend=False,
                     xaxis=dict(fixedrange=True, title="Estados"),
-                    yaxis=dict(fixedrange=True, title=var_label)
+                    yaxis=dict(fixedrange=True, title=f"{var_label}")
                 )
-                st.plotly_chart(fig_box_est, use_container_width=True, theme="streamlit", config=config_padrao)
+
+                st.plotly_chart(
+                    fig_box_est, 
+                    use_container_width=True, 
+                    theme="streamlit",  
+                    config={
+                        'displaylogo': False,
+                        'modeBarButtonsToRemove': [
+                            'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+                            'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
+                        ]
+                    }
+                )
             else:
                 st.info("Selecione estados para ver o boxplot.")
         
         with col_est2:
             if not df_estado.empty:
                 st.markdown("**Comparativo Temporal**")
+                # Agrupa por dia e estado
                 df_line_est = df_estado.groupby(['Data_Dia', 'state'])[var_coluna].mean().reset_index()
                 
                 fig_line_est = px.line(
@@ -182,26 +179,24 @@ else:
                     markers=True,
                     title=f"Evolução"
                 )
-                # Aplica config padrão
-                fig_line_est.update_layout(
-                    xaxis=dict(fixedrange=True, title="Data"),
-                    yaxis=dict(fixedrange=True, title=var_label)
-                )
-                st.plotly_chart(fig_line_est, use_container_width=True, theme="streamlit", config=config_padrao)
+                st.plotly_chart(fig_line_est, use_container_width=True)
             else:
                 st.info("Selecione estados para ver a evolução.")
         
         # --- TABELA DE ESTATÍSTICAS POR ESTADO ---
         if not df_estado.empty:
             with st.expander("### 📊 Estatísticas Detalhadas por Estados", expanded=False):
-                # Agrupamento correto por estado
                 tabela_est = df_estado.groupby('state')[var_coluna].agg(
                     ['count', 'mean', 'std', 'min', 'max', 'median']
                 ).reset_index().sort_values(by='mean', ascending=False)
 
+                # Cálculo de altura dinâmica (linhas + cabeçalho)
+                altura_est = (len(tabela_est) + 1) * 35 + 3
+
                 st.dataframe(
                     tabela_est,
                     use_container_width=True,
+                    height=altura_est, # Altura ajustada
                     hide_index=True,
                     column_config={
                         "state": "Estado",
@@ -222,6 +217,7 @@ else:
         col_sel, col_graph = st.columns([1, 3])
         
         with col_sel:
+            # Lista apenas os estados que passaram no filtro da região
             estado_destaque = st.selectbox(
                 "Selecione um estado para destacar:", 
                 estados_disponiveis,
@@ -231,6 +227,7 @@ else:
         with col_graph:
             if estado_destaque:
                 df_destaque = df_regiao[df_regiao['state'] == estado_destaque]
+                # Agrupa para garantir unicidade temporal
                 df_line_dest = df_destaque.groupby('Data_Dia')[var_coluna].mean().reset_index()
                 
                 fig_dest = px.line(
@@ -241,10 +238,4 @@ else:
                     title=f"Evolução Isolada: {estado_destaque}"
                 )
                 fig_dest.update_traces(line_color='#FF4B4B', line_width=3) 
-                
-                # Aplica config padrão
-                fig_dest.update_layout(
-                    xaxis=dict(fixedrange=True, title="Data"),
-                    yaxis=dict(fixedrange=True, title=var_label)
-                )
-                st.plotly_chart(fig_dest, use_container_width=True, theme="streamlit", config=config_padrao)
+                st.plotly_chart(fig_dest, use_container_width=True)
