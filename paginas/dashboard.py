@@ -8,11 +8,11 @@ st.set_page_config(page_title="Análise Descritiva - Clima Brasil", layout="wide
 # 2. Carregamento de Dados
 @st.cache_data
 def carregar_dados():
-    # Caminho do arquivo conforme estrutura enviada
+    # Certifique-se que o caminho do arquivo está correto no seu projeto
     df = pd.read_csv("dataframe/clima_brasil_mensal_refinado_2015.csv")
     df['mes'] = pd.to_datetime(df['periodo_ref'])
     df['Data_Dia'] = df['mes'].dt.date
-    # Cria coluna de Ano para o filtro
+    # Cria a coluna Ano para o filtro
     df['Ano'] = df['mes'].dt.year
     return df
 
@@ -46,6 +46,7 @@ for reg in unique_regions:
 cores_estados = {}
 for regiao in unique_regions:
     lista_cores = paletas_estados_matte.get(regiao, [])
+    # Ordena estados alfabeticamente para garantir consistência na atribuição de cor
     estados_da_regiao = sorted(df[df['region'] == regiao]['state'].unique())
     for estado, cor in zip(estados_da_regiao, lista_cores):
         cores_estados[estado] = cor
@@ -78,41 +79,40 @@ with col_filtros_1:
     )
 
 with col_filtros_2:
-    # --- FILTRO TEMPORAL (ANO) ---
     st.write("3. Filtro Temporal")
-    usar_filtro_ano = st.checkbox("Deseja filtrar o ano?")
+    usar_filtro_ano = st.checkbox("Filtrar por Ano?")
     
-    # Define DataFrame base para o tempo
+    # Valores padrão (Todo o dataset)
     df_filtrado_tempo = df
     
     if usar_filtro_ano:
         min_ano = int(df['Ano'].min())
         max_ano = int(df['Ano'].max())
         
-        # Slider de seleção de ano
         if min_ano == max_ano:
-            st.info(f"Dados disponíveis apenas para {min_ano}.")
+            st.info(f"Ano único disponível: {min_ano}")
             ano_inicio, ano_fim = min_ano, max_ano
         else:
             ano_inicio, ano_fim = st.slider(
-                "Selecione a faixa de anos:",
+                "Faixa de Anos:",
                 min_value=min_ano,
                 max_value=max_ano,
                 value=(min_ano, max_ano)
             )
         
-        # Aplica o filtro de tempo
+        # Aplica filtro de tempo
         df_filtrado_tempo = df[(df['Ano'] >= ano_inicio) & (df['Ano'] <= ano_fim)]
 
-# --- PREPARAÇÃO DOS DADOS ---
-# 1. Lista de Estados (Estável): Usa o DF original (sem filtro de tempo) para popular o multiselect
-#    Isso evita que estados sumam da lista se não tiverem dados no ano selecionado.
-if regioes_sel:
-    df_lista_estavel = df[df['region'].isin(regioes_sel)]
-else:
-    df_lista_estavel = df[df['region'].isin([])]
+# --- LÓGICA DE DADOS (CRÍTICO PARA ESTABILIDADE) ---
 
-# 2. Dados para Gráficos (Dinâmico): Usa o DF com filtro de tempo + região
+# 1. Lista de Estados ESTÁVEL (Baseada apenas nas Regiões selecionadas, ignora o Tempo)
+# Isso impede que estados sumam do filtro se não tiverem dados no ano selecionado
+if regioes_sel:
+    df_base_regiao = df[df['region'].isin(regioes_sel)]
+else:
+    df_base_regiao = df[df['region'].isin([])]
+
+# 2. Dados para GRÁFICOS (Baseado em Região + Tempo)
 if regioes_sel:
     df_regiao = df_filtrado_tempo[df_filtrado_tempo['region'].isin(regioes_sel)]
 else:
@@ -122,7 +122,7 @@ st.markdown("---")
 
 # --- VISUALIZAÇÃO (ABAS) ---
 if df_regiao.empty:
-    st.warning("⚠️ Nenhuma região selecionada ou sem dados para o período escolhido.")
+    st.warning("⚠️ Sem dados para os filtros selecionados (Verifique a Região ou o Ano).")
 else:
     tab_reg, tab_est = st.tabs(["🌍 Visão por Região", "📍 Visão por Estado"])
 
@@ -130,8 +130,10 @@ else:
     with tab_reg:
         st.subheader(f"Análise Regional: {var_label}")
         
+        # Prepara ordem alfabética das regiões presentes
+        ordem_regioes = sorted(df_regiao['region'].unique())
+        
         with st.expander("### 📊 Estatísticas Detalhadas por Região", expanded=False):
-            # ORDENAÇÃO: Fixa por ordem alfabética da Região (ascending=True)
             tabela_reg = df_regiao.groupby('region')[var_coluna].agg(
                 ['count', 'mean', 'std', 'min', 'max', 'median']
             ).reset_index().sort_values(by='region', ascending=True)
@@ -140,42 +142,27 @@ else:
                 tabela_reg,
                 use_container_width=True,
                 hide_index=True,
-                column_config={
-                    "region": "Região",
-                    "count": st.column_config.NumberColumn("Nº Registros", format="%d"),
-                    "mean": st.column_config.NumberColumn("Média", format="%.2f"),
-                    "std": st.column_config.NumberColumn("Desv. Padrão", format="%.2f"),
-                    "min": st.column_config.NumberColumn("Mínimo", format="%.2f"),
-                    "max": st.column_config.NumberColumn("Máximo", format="%.2f"),
-                    "median": st.column_config.NumberColumn("Mediana", format="%.2f")
-                }
+                column_config={"region": "Região", "mean": st.column_config.NumberColumn("Média", format="%.2f")}
             )
 
         # === Boxplot ===
         st.markdown("**Distribuição (Boxplot)**")
-        # Garante ordem alfabética no eixo X
-        df_regiao_sorted = df_regiao.sort_values(by='region')
-        
         fig_box_reg = px.box(
-            df_regiao_sorted, 
+            df_regiao, 
             x="region", 
             y=var_coluna, 
             color="region", 
             points="outliers",
-            color_discrete_map=cores_regioes
+            color_discrete_map=cores_regioes,
+            # ESTA É A CHAVE: Força a ordem alfabética no Eixo X
+            category_orders={"region": ordem_regioes}
         )
-        fig_box_reg.update_layout(
-            showlegend=False,
-            xaxis=dict(fixedrange=True, title="Regiões"),
-            yaxis=dict(fixedrange=True, title=f"{var_label}")
-        )
-        fig_box_reg.update_traces(marker_opacity=1)
+        fig_box_reg.update_layout(showlegend=False, xaxis_title="Regiões", yaxis_title=var_label)
         st.plotly_chart(fig_box_reg, use_container_width=True)
             
         # === Linhas ===
         st.markdown("**Evolução Temporal (Média das Regiões)**")
-        # Agrupa e Ordena
-        df_line_reg = df_regiao.groupby(['Data_Dia', 'region'])[var_coluna].mean().reset_index().sort_values(by='region')
+        df_line_reg = df_regiao.groupby(['Data_Dia', 'region'])[var_coluna].mean().reset_index()
         
         fig_line_reg = px.line(
             df_line_reg, 
@@ -183,38 +170,32 @@ else:
             y=var_coluna, 
             color="region",
             markers=True,
-            color_discrete_map=cores_regioes
+            color_discrete_map=cores_regioes,
+            category_orders={"region": ordem_regioes}
         )
-        fig_line_reg.update_layout(
-            xaxis=dict(fixedrange=True, title="Data"),
-            yaxis=dict(fixedrange=True, title=f"{var_label}")
-        )
+        fig_line_reg.update_layout(xaxis_title="Data", yaxis_title=var_label)
         st.plotly_chart(fig_line_reg, use_container_width=True)
 
     # === ABA 2: ANÁLISE POR ESTADO ===
     with tab_est:
         st.subheader(f"Análise Estadual: {var_label}")
 
-        # Filtro de Estado (Usa a lista estável para não 'piscar' opções)
-        estados_disponiveis = sorted(df_lista_estavel['state'].unique().astype(str))
+        # Filtro de Estado (Usa df_base_regiao para estabilidade da lista)
+        estados_disponiveis = sorted(df_base_regiao['state'].unique().astype(str))
         estados_sel = st.multiselect(
             "3. Filtre os Estados (Opcional):", 
             estados_disponiveis, 
             default=estados_disponiveis
         )
 
-        # Filtra os dados reais (com tempo) baseados na seleção
+        # Filtra os dados de tempo com os estados selecionados
         if estados_sel:
             df_estado = df_regiao[df_regiao['state'].isin(estados_sel)]
         else:
             df_estado = df_regiao
 
         with st.expander("### 📊 Estatísticas Detalhadas por Estados", expanded=False):
-            # ORDENAÇÃO: Fixa por ordem alfabética do Estado
-            tabela_est = df_estado.groupby('state')[var_coluna].agg(
-                ['count', 'mean', 'std', 'min', 'max', 'median']
-            ).reset_index().sort_values(by='state', ascending=True)
-            
+            tabela_est = df_estado.groupby('state')[var_coluna].agg(['count', 'mean', 'std', 'min', 'max', 'median']).reset_index().sort_values(by='state', ascending=True)
             altura_est = (len(tabela_est) + 1) * 35 + 3
 
             st.dataframe(
@@ -222,44 +203,35 @@ else:
                 use_container_width=True,
                 height=altura_est,
                 hide_index=True,
-                column_config={
-                    "state": "Estado",
-                    "count": st.column_config.NumberColumn("Nº Registros", format="%d"),
-                    "mean": st.column_config.NumberColumn("Média", format="%.2f"),
-                    "std": st.column_config.NumberColumn("Desv. Padrão", format="%.2f"),
-                    "min": st.column_config.NumberColumn("Mínimo", format="%.2f"),
-                    "max": st.column_config.NumberColumn("Máximo", format="%.2f"),
-                    "median": st.column_config.NumberColumn("Mediana", format="%.2f")
-                }
+                column_config={"state": "Estado", "mean": st.column_config.NumberColumn("Média", format="%.2f")}
             )
 
         # === Boxplot ===
         if not df_estado.empty:
             st.markdown("**Comparativo de Distribuição**")
-            # Ordenação alfabética forçada no gráfico
-            df_estado_sorted = df_estado.sort_values(by='state')
+            # Prepara ordem alfabética dos estados presentes
+            ordem_estados = sorted(df_estado['state'].unique())
             
             fig_box_est = px.box(
-                df_estado_sorted, 
+                df_estado, 
                 x="state", 
                 y=var_coluna, 
                 color="state",
                 title=f"Distribuição de {var_label} (por Estado)",
-                color_discrete_map=cores_estados
+                color_discrete_map=cores_estados,
+                # ESTA É A CHAVE: Força a ordem alfabética no Eixo X
+                category_orders={"state": ordem_estados}
             )
-            fig_box_est.update_layout(
-                showlegend=False,
-                xaxis=dict(fixedrange=True, title="Estados"),
-                yaxis=dict(fixedrange=True, title=f"{var_label}")
-            )
+            fig_box_est.update_layout(showlegend=False, xaxis_title="Estados", yaxis_title=var_label)
             st.plotly_chart(fig_box_est, use_container_width=True)
         else:
-            st.info("Selecione estados ou ajuste o filtro de tempo para ver dados.")
+            st.info("Sem dados para exibir no Boxplot.")
         
         # Destaque Individual
         st.markdown("**🔍 Detalhe Individual (Foco em 1 Estado)**")
         col_sel, col_graph = st.columns([1, 3])
         with col_sel:
+            # Lista estável
             estado_destaque = st.selectbox(
                 "Selecione um estado para destacar:", 
                 estados_disponiveis,
@@ -267,7 +239,6 @@ else:
             )
         with col_graph:
             if estado_destaque:
-                # Filtra especificamente para o gráfico de linha
                 df_destaque = df_regiao[df_regiao['state'] == estado_destaque]
                 
                 if not df_destaque.empty:
@@ -280,15 +251,11 @@ else:
                         markers=True,
                         title=f"Evolução Isolada: {estado_destaque}"
                     )
-                    fig_dest.update_layout(
-                        showlegend=False,
-                        xaxis=dict(fixedrange=True, title="Data"),
-                        yaxis=dict(fixedrange=True, title=f"{var_label}")
-                    )
                     
                     cor_estado = cores_estados.get(estado_destaque, '#FF4B4B')
                     fig_dest.update_traces(line_color=cor_estado, line_width=3)
+                    fig_dest.update_layout(showlegend=False, xaxis_title="Data", yaxis_title=var_label)
                     
                     st.plotly_chart(fig_dest, use_container_width=True)
                 else:
-                    st.warning(f"Sem dados para {estado_destaque} no período selecionado.")
+                    st.warning(f"Não há dados para {estado_destaque} no período selecionado.")
