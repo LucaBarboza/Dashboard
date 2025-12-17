@@ -139,5 +139,6 @@ fig.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 200 # S
 st.plotly_chart(fig, use_container_width=True)
 
 # Tabela de Dados
-with st.expander("Ver dados brutos desta animação"):
-    st.dataframe(df_animacao.pivot(index='state', columns='ano', values=var_col))
+altura_tab_map = (len(df_animacao) + 1) * 35 + 3
+with st.expander("Ver dados desta animação"):
+    st.dataframe(df_animacao.pivot(index='state', columns='ano', values=var_col), height = altura_tab_map)
