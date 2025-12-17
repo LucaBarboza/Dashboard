@@ -8,7 +8,7 @@ st.set_page_config(page_title="Análise Descritiva - Clima Brasil", layout="wide
 # 2. Carregamento de Dados
 @st.cache_data
 def carregar_dados():
-    # Certifique-se que o caminho do arquivo está correto no seu projeto
+    # Caminho do arquivo conforme estrutura enviada
     df = pd.read_csv("dataframe/clima_brasil_mensal_refinado_2015.csv")
     df['mes'] = pd.to_datetime(df['periodo_ref'])
     df['Data_Dia'] = df['mes'].dt.date
@@ -63,7 +63,7 @@ cols_numericas = {
     'Radiação Média (Kj/m²)': 'radiacao_media'
 }
 
-var_label = st.selectbox("Escolha a Variável:", options=cols_numericas.keys())
+var_label = st.selectbox("1. Escolha a Variável:", options=cols_numericas.keys())
 var_coluna = cols_numericas[var_label]
 
 # --- FILTROS LATERAIS (Região e Tempo) ---
@@ -72,24 +72,24 @@ col_filtros_1, col_filtros_2 = st.columns([2, 1])
 with col_filtros_1:
     regioes_disponiveis = sorted(df['region'].unique().astype(str))
     regioes_sel = st.multiselect(
-        "Filtre as Regiões:", 
+        "2. Filtre as Regiões:", 
         regioes_disponiveis, 
         default=regioes_disponiveis
     )
 
 with col_filtros_2:
-    # --- FILTRO TEMPORAL ---
-    st.write("")
-    st.write("")
+    # --- FILTRO TEMPORAL (ANO) ---
+    st.write("3. Filtro Temporal")
     usar_filtro_ano = st.checkbox("Deseja filtrar o ano?")
     
-    # Define valores padrão (todos os dados)
+    # Define DataFrame base para o tempo
     df_filtrado_tempo = df
     
     if usar_filtro_ano:
         min_ano = int(df['Ano'].min())
         max_ano = int(df['Ano'].max())
         
+        # Slider de seleção de ano
         if min_ano == max_ano:
             st.info(f"Dados disponíveis apenas para {min_ano}.")
             ano_inicio, ano_fim = min_ano, max_ano
@@ -104,14 +104,15 @@ with col_filtros_2:
         # Aplica o filtro de tempo
         df_filtrado_tempo = df[(df['Ano'] >= ano_inicio) & (df['Ano'] <= ano_fim)]
 
-# --- LÓGICA DE DATAFRAMES ---
-# 1. Dataframe usado para preencher a lista de ESTADOS (Estabilidade: Ignora filtro de tempo)
+# --- PREPARAÇÃO DOS DADOS ---
+# 1. Lista de Estados (Estável): Usa o DF original (sem filtro de tempo) para popular o multiselect
+#    Isso evita que estados sumam da lista se não tiverem dados no ano selecionado.
 if regioes_sel:
-    df_apenas_regiao_total = df[df['region'].isin(regioes_sel)]
+    df_lista_estavel = df[df['region'].isin(regioes_sel)]
 else:
-    df_apenas_regiao_total = df[df['region'].isin([])]
+    df_lista_estavel = df[df['region'].isin([])]
 
-# 2. Dataframe usado para os GRÁFICOS (Respeita Região + Tempo)
+# 2. Dados para Gráficos (Dinâmico): Usa o DF com filtro de tempo + região
 if regioes_sel:
     df_regiao = df_filtrado_tempo[df_filtrado_tempo['region'].isin(regioes_sel)]
 else:
@@ -130,7 +131,7 @@ else:
         st.subheader(f"Análise Regional: {var_label}")
         
         with st.expander("### 📊 Estatísticas Detalhadas por Região", expanded=False):
-            # ALTERAÇÃO AQUI: sort_values por 'region' em vez de 'mean'
+            # ORDENAÇÃO: Fixa por ordem alfabética da Região (ascending=True)
             tabela_reg = df_regiao.groupby('region')[var_coluna].agg(
                 ['count', 'mean', 'std', 'min', 'max', 'median']
             ).reset_index().sort_values(by='region', ascending=True)
@@ -152,7 +153,7 @@ else:
 
         # === Boxplot ===
         st.markdown("**Distribuição (Boxplot)**")
-        # Para garantir ordem no gráfico, ordenamos o df antes
+        # Garante ordem alfabética no eixo X
         df_regiao_sorted = df_regiao.sort_values(by='region')
         
         fig_box_reg = px.box(
@@ -173,6 +174,7 @@ else:
             
         # === Linhas ===
         st.markdown("**Evolução Temporal (Média das Regiões)**")
+        # Agrupa e Ordena
         df_line_reg = df_regiao.groupby(['Data_Dia', 'region'])[var_coluna].mean().reset_index().sort_values(by='region')
         
         fig_line_reg = px.line(
@@ -193,23 +195,26 @@ else:
     with tab_est:
         st.subheader(f"Análise Estadual: {var_label}")
 
-        # Filtro de Estado (Baseado no df_apenas_regiao_total para estabilidade da lista)
-        estados_disponiveis = sorted(df_apenas_regiao_total['state'].unique().astype(str))
+        # Filtro de Estado (Usa a lista estável para não 'piscar' opções)
+        estados_disponiveis = sorted(df_lista_estavel['state'].unique().astype(str))
         estados_sel = st.multiselect(
             "3. Filtre os Estados (Opcional):", 
             estados_disponiveis, 
             default=estados_disponiveis
         )
 
-        # Cria DF para esta aba (usando o df_regiao que já tem filtro de tempo)
+        # Filtra os dados reais (com tempo) baseados na seleção
         if estados_sel:
             df_estado = df_regiao[df_regiao['state'].isin(estados_sel)]
         else:
             df_estado = df_regiao
 
         with st.expander("### 📊 Estatísticas Detalhadas por Estados", expanded=False):
-            # ALTERAÇÃO AQUI: sort_values por 'state' em vez de 'mean'
-            tabela_est = df_estado.groupby('state')[var_coluna].agg(['count', 'mean', 'std', 'min', 'max', 'median']).reset_index().sort_values(by='state', ascending=True)
+            # ORDENAÇÃO: Fixa por ordem alfabética do Estado
+            tabela_est = df_estado.groupby('state')[var_coluna].agg(
+                ['count', 'mean', 'std', 'min', 'max', 'median']
+            ).reset_index().sort_values(by='state', ascending=True)
+            
             altura_est = (len(tabela_est) + 1) * 35 + 3
 
             st.dataframe(
@@ -255,7 +260,6 @@ else:
         st.markdown("**🔍 Detalhe Individual (Foco em 1 Estado)**")
         col_sel, col_graph = st.columns([1, 3])
         with col_sel:
-            # Lista de estados no selectbox também estável
             estado_destaque = st.selectbox(
                 "Selecione um estado para destacar:", 
                 estados_disponiveis,
@@ -263,7 +267,7 @@ else:
             )
         with col_graph:
             if estado_destaque:
-                # Filtra especificamente para o gráfico de linha (pode ficar vazio se não houver dados na data)
+                # Filtra especificamente para o gráfico de linha
                 df_destaque = df_regiao[df_regiao['state'] == estado_destaque]
                 
                 if not df_destaque.empty:
