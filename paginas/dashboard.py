@@ -20,7 +20,6 @@ df = carregar_dados()
 # Define a escala base para cada região (Códigos padrão IBGE: N, NE, CO, SE, S)
 paletas_estados_matte = {
     # NE: 9 tons (Do Verde-Limão suave -> Amarelo -> Laranja Coral)
-    # Isso garante que um estado não fique igual ao vizinho
     'NE': [
         "#D4E157", # Lime (Verde Amarelado)
         "#FFEE58", # Amarelo Canário
@@ -69,17 +68,16 @@ paletas_estados_matte = {
 }
 
 # B. PALETA REGIÕES (Tons Pastéis Claros "Marca d'água")
-# Usados se você agrupar o gráfico por Região
 paletas_regioes_pastel = {
     'NE': "#FFF59D", # Amarelo Manteiga
     'N':  "#C8E6C9", # Verde Menta
     'SE': "#BBDEFB", # Azul Nuvem
-    'CO': "#F8BBD0", # Rosa Bebê (Para combinar com o pedido)
+    'CO': "#F8BBD0", # Rosa Bebê
     'S':  "#E1BEE7"  # Lavanda
 }
 
 # ---------------------------------------------------------
-# 2. LÓGICA DE APLICAÇÃO (AUTOMÁTICA)
+# 2. LÓGICA DE APLICAÇÃO
 # ---------------------------------------------------------
 
 unique_regions = df['region'].unique()
@@ -99,8 +97,7 @@ for regiao in unique_regions:
     # Ordena os estados alfabeticamente
     estados_da_regiao = sorted(df[df['region'] == regiao]['state'].unique())
     
-    # Se houver mais estados que cores (segurança), repetimos a última cor
-    # Mas como fiz as listas exatas, o zip funciona perfeito.
+    # Atribui cor
     for estado, cor in zip(estados_da_regiao, lista_cores):
         cores_estados[estado] = cor
 
@@ -127,17 +124,38 @@ regioes_sel = st.multiselect(
     default=regioes_disponiveis
 )
 
-# Lógica de Filtragem Principal
-if regioes_sel:
-    df_regiao = df[df['region'].isin(regioes_sel)]
+# --- NOVO BLOCO: FILTRO DE DATA ---
+min_data = df['Data_Dia'].min()
+max_data = df['Data_Dia'].max()
+
+datas_selecionadas = st.date_input(
+    "3. Filtre por Faixa de Tempo (Ano/Mês):",
+    value=(min_data, max_data),
+    min_value=min_data,
+    max_value=max_data,
+    format="DD/MM/YYYY"
+)
+
+if isinstance(datas_selecionadas, tuple) and len(datas_selecionadas) == 2:
+    inicio, fim = datas_selecionadas
 else:
-    df_regiao = df[df['region'].isin([])]
+    inicio, fim = min_data, max_data
+
+# Aplica filtro de data no dataframe base
+mask_data = (df['Data_Dia'] >= inicio) & (df['Data_Dia'] <= fim)
+df_filtrado_tempo = df[mask_data]
+
+# Lógica de Filtragem Principal (Usa o df já filtrado por tempo)
+if regioes_sel:
+    df_regiao = df_filtrado_tempo[df_filtrado_tempo['region'].isin(regioes_sel)]
+else:
+    df_regiao = df_filtrado_tempo[df_filtrado_tempo['region'].isin([])]
 
 st.markdown("---")
 
 # --- VISUALIZAÇÃO (ABAS) ---
 if df_regiao.empty:
-    st.warning("⚠️ Nenhuma região selecionada acima.")
+    st.warning("⚠️ Nenhuma região selecionada ou sem dados para o período.")
 else:
     tab_reg, tab_est = st.tabs(["🌍 Visão por Região", "📍 Visão por Estado"])
 
@@ -173,7 +191,7 @@ else:
             y=var_coluna, 
             color="region", 
             points="outliers",
-            color_discrete_map=cores_regioes # Aplica cor da região
+            color_discrete_map=cores_regioes
         )
         fig_box_reg.update_layout(
             showlegend=False,
@@ -192,7 +210,7 @@ else:
             y=var_coluna, 
             color="region",
             markers=True,
-            color_discrete_map=cores_regioes # Aplica cor da região
+            color_discrete_map=cores_regioes
         )
         fig_line_reg.update_layout(
             xaxis=dict(fixedrange=True, title="Data"),
