@@ -3,17 +3,6 @@ import pandas as pd
 import plotly.express as px
 import requests
 
-# --- CONFIGURAÇÃO PADRÃO (Travamento de Zoom/Pan e Limpeza Visual) ---
-config_padrao = {
-    'scrollZoom': False, # Desabilita zoom com scroll do mouse
-    'displaylogo': False,
-    'modeBarButtonsToRemove': [
-        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
-        'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d',
-        'toImage', 'toggleHover'
-    ]
-}
-
 # --- TÍTULO E EXPLICAÇÃO ---
 st.header("🌍 Mapa Animado: Evolução Climática")
 st.markdown("""
@@ -125,9 +114,9 @@ fig = px.choropleth_mapbox(
     locations='state',
     featureidkey="properties.sigla",
     color=var_col,
-    animation_frame="ano", 
+    animation_frame="ano", # Isso já cria o Play automático
     color_continuous_scale=escala,
-    range_color=[min_val, max_val], # Trava a escala de cores
+    range_color=[min_val, max_val],
     mapbox_style="carto-positron",
     zoom=3.5,
     center={"lat": -15.7, "lon": -52},
@@ -136,44 +125,23 @@ fig = px.choropleth_mapbox(
     height=700
 )
 
-# Ajustes de Layout (Margens, Velocidade, Botões e TRAVAMENTO)
+# Ajustes de Layout
 fig.update_layout(
-    dragmode=False, # <--- TRAVA O ARRASTO (PAN) DO MAPA
     margin={"r":0,"t":50,"l":0,"b":0},
     coloraxis_colorbar=dict(title=var_label),
-    updatemenus=[
-        dict(
-            type='buttons',
-            showactive=False,
-            y=0.1, 
-            x=0.1, 
-            xanchor='right', 
-            yanchor='top', 
-            pad=dict(t=0, r=10),
-            buttons=[
-                # --- BOTÃO PLAY ---
-                dict(
-                    label='▶️ Play',
-                    method='animate',
-                    args=[None, dict(frame=dict(duration=800, redraw=True), 
-                                     fromcurrent=True)]
-                ),
-                # --- BOTÃO PAUSE ---
-                dict(
-                    label='⏸️ Pause',
-                    method='animate',
-                    args=[[None], dict(frame=dict(duration=0, redraw=False), 
-                                       mode="immediate", 
-                                       transition=dict(duration=0))]
-                )
-            ]
-        )
-    ]
+    # REMOVIDO: updatemenus=[...] (Isso causava o botão duplo)
 )
 
-# Renderização com Configuração de Travamento (Sem scroll zoom, sem botões de zoom)
-st.plotly_chart(fig, use_container_width=True, config=config_padrao)
+# --- AJUSTE DE VELOCIDADE ---
+fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 800
+fig.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 200 # Suavidade da transição
 
-# Tabela de Dados (Opcional)
-with st.expander("Ver dados brutos desta animação"):
-    st.dataframe(df_animacao.pivot(index='state', columns='ano', values=var_col))
+st.plotly_chart(fig, use_container_width=True)
+
+# Tabela de Dados
+df_pivot = df_animacao.pivot(index='state', columns='ano', values=var_col)
+
+altura_tab_map = (len(df_pivot) + 1) * 35 + 3
+
+with st.expander("Ver dados desta animação"):
+    st.dataframe(df_pivot, height=altura_tab_map)
