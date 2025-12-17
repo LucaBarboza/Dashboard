@@ -3,6 +3,17 @@ import pandas as pd
 import plotly.express as px
 import requests
 
+# --- CONFIGURAÇÃO VISUAL (Travamento e Limpeza) ---
+config_padrao = {
+    'scrollZoom': False, # Impede zoom com o scroll do mouse
+    'displaylogo': False,
+    'modeBarButtonsToRemove': [
+        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+        'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d',
+        'toImage', 'toggleHover'
+    ]
+}
+
 # --- TÍTULO E EXPLICAÇÃO ---
 st.header("🌍 Mapa Animado: Evolução Climática")
 st.markdown("""
@@ -114,33 +125,37 @@ fig = px.choropleth_mapbox(
     locations='state',
     featureidkey="properties.sigla",
     color=var_col,
-    animation_frame="ano", # Isso já cria o Play automático
+    animation_frame="ano",
     color_continuous_scale=escala,
     range_color=[min_val, max_val],
     mapbox_style="carto-positron",
-    zoom=3.5,
-    center={"lat": -15.7, "lon": -52},
+    # --- AJUSTE DE ZOOM E CENTRO ---
+    zoom=3.0,  # Reduzi de 3.5 para 3.0 para caber o país todo
+    center={"lat": -15.0, "lon": -54.0}, # Ajuste fino do centro geográfico
     opacity=0.9,
     title=f"Evolução: {var_label} no {estacao_selecionada} (2015-2021)",
     height=700
 )
 
-# Ajustes de Layout
+# Ajustes de Layout e Velocidade
 fig.update_layout(
     margin={"r":0,"t":50,"l":0,"b":0},
     coloraxis_colorbar=dict(title=var_label),
-    # REMOVIDO: updatemenus=[...] (Isso causava o botão duplo)
+    dragmode=False, # <--- IMPORTANTE: Impede o usuário de arrastar o mapa e perder o foco
 )
 
-# --- AJUSTE DE VELOCIDADE ---
-fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 800
-fig.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 200 # Suavidade da transição
+# Ajuste fino da velocidade da animação (acessando a estrutura interna do Plotly)
+try:
+    fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 800
+    fig.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 200
+except:
+    pass # Caso a estrutura do menu mude, evita erro
 
-st.plotly_chart(fig, use_container_width=True)
+# Exibição com Configurações Travadas
+st.plotly_chart(fig, use_container_width=True, config=config_padrao)
 
 # Tabela de Dados
 df_pivot = df_animacao.pivot(index='state', columns='ano', values=var_col)
-
 altura_tab_map = (len(df_pivot) + 1) * 35 + 3
 
 with st.expander("Ver dados desta animação"):
