@@ -86,7 +86,6 @@ with col_filtros_1:
 
 with col_filtros_2:
     # --- NOVO BLOCO: FILTRO APENAS POR ANO ---
-    st.write("Filtro Temporal")
     usar_filtro_ano = st.checkbox("Deseja filtrar o ano?")
     
     # Define valores padrão (todos os dados)
