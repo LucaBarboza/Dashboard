@@ -8,21 +8,28 @@ st.markdown("""
         text-align: center;
         font-size: 3rem;
         font-weight: bold;
-        color: #2E86C1;
+        color: #2E86C1; /* Pode manter azul ou usar var(--primary-color) */
         margin-bottom: 0px;
     }
     .subtitle {
         text-align: center;
         font-size: 1.2rem;
-        color: #555;
+        color: var(--text-color); /* ANTES: #555 (ficava invisível no escuro) */
         margin-bottom: 30px;
+        opacity: 0.8;
     }
     .card {
-        background-color: #f0f2f6;
+        background-color: var(--secondary-background-color); /* ANTES: #f0f2f6 */
         padding: 20px;
         border-radius: 10px;
         border-left: 5px solid #2E86C1;
         margin-bottom: 20px;
+        /* Adiciona uma sombra suave para destacar no modo claro e escuro */
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+    }
+    /* Força a cor do texto dentro dos cards para se adaptar */
+    .card h3, .card p {
+        color: var(--text-color) !important;
     }
     </style>
 """, unsafe_allow_html=True)
