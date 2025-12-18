@@ -1,34 +1,47 @@
 import streamlit as st
 
 # --- CONFIGURAÇÃO VISUAL ---
-# Título Principal com formatação centralizada
+# Título Principal com formatação centralizada e CSS dinâmico (Claro/Escuro)
 st.markdown("""
     <style>
     .main-title {
         text-align: center;
         font-size: 3rem;
         font-weight: bold;
-        color: #2E86C1; /* Pode manter azul ou usar var(--primary-color) */
+        color: #2E86C1;
         margin-bottom: 0px;
     }
     .subtitle {
         text-align: center;
         font-size: 1.2rem;
-        color: var(--text-color); /* ANTES: #555 (ficava invisível no escuro) */
+        color: var(--text-color); /* Adapta ao tema (antes era #555) */
         margin-bottom: 30px;
         opacity: 0.8;
     }
+    
+    /* Estilo para os Cards de Navegação */
     .card {
-        background-color: var(--secondary-background-color); /* ANTES: #f0f2f6 */
+        background-color: var(--secondary-background-color); /* Fundo dinâmico (antes #f0f2f6) */
         padding: 20px;
         border-radius: 10px;
         border-left: 5px solid #2E86C1;
         margin-bottom: 20px;
-        /* Adiciona uma sombra suave para destacar no modo claro e escuro */
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); /* Sombra suave */
     }
-    /* Força a cor do texto dentro dos cards para se adaptar */
+    /* Garante que o texto dentro dos cards também se adapte */
     .card h3, .card p {
+        color: var(--text-color) !important;
+    }
+
+    /* Estilo para o Card de Destaque (Cobertura Nacional) */
+    .metric-card {
+        text-align: center;
+        padding: 20px;
+        background-color: var(--secondary-background-color); /* Fundo dinâmico */
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .metric-card h1, .metric-card p {
         color: var(--text-color) !important;
     }
     </style>
@@ -57,8 +70,9 @@ with col_intro:
 
 with col_img:
     # Espaço para uma imagem ilustrativa ou métrica de destaque
+    # Alterado para usar a classe .metric-card em vez de estilo inline fixo
     st.markdown("""
-    <div style="text-align: center; padding: 20px; background-color: #e8f4f8; border-radius: 15px;">
+    <div class="metric-card">
         <h1>🇧🇷</h1>
         <p>Cobertura Nacional</p>
         <p><strong>26 Estados + DF</strong></p>
