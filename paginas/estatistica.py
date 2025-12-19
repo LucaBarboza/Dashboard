@@ -82,7 +82,7 @@ with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
             # "aspect='equal'" evita que a matriz fique achatada, mantendo células quadradas
             aspect="equal", 
             # Escala 'IceFire' ou 'RdBu_r' com cores mais sóbrias, ou 'Greys' para neutralidade total
-            color_continuous_scale="IceFire", 
+            color_continuous_scale="Tropic", 
             zmin=-1, zmax=1,
             title=titulo
         )
