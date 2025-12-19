@@ -74,35 +74,45 @@ with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
     
     col_pearson, col_spearman = st.columns(2)
     
-    # Configuração comum para remover o fundo branco e usar interatividade
-    def criar_heatmap_plotly(df_corr_matrix, titulo, colorscale):
+    # Função interna para padronizar o visual neutro
+    def criar_heatmap_clean(df_corr_matrix, titulo):
         fig = px.imshow(
             df_corr_matrix,
             text_auto=".2f",
-            aspect="auto",
-            color_continuous_scale=colorscale,
-            labels=dict(color="Correlação"),
-            title=titulo,
-            zmin=-1, zmax=1
+            # "aspect='equal'" evita que a matriz fique achatada, mantendo células quadradas
+            aspect="equal", 
+            # Escala 'IceFire' ou 'RdBu_r' com cores mais sóbrias, ou 'Greys' para neutralidade total
+            color_continuous_scale="RdBu_r", 
+            zmin=-1, zmax=1,
+            title=titulo
         )
-        # Ajuste de layout para remover o fundo branco e melhorar estética
+        
         fig.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', # Fundo do papel transparente
-            plot_bgcolor='rgba(0,0,0,0)',  # Fundo do gráfico transparente
-            margin=dict(l=20, r=20, t=40, b=20)
+            height=500, # Aumenta a altura para não ficar achatado
+            paper_bgcolor='rgba(0,0,0,0)', 
+            plot_bgcolor='rgba(0,0,0,0)',
+            # Estilização da fonte e eixos para algo mais limpo
+            font=dict(color="white" if st.get_option("theme.base") == "dark" else "black"),
+            coloraxis_showscale=True,
+            margin=dict(l=10, r=10, t=50, b=10)
         )
+        
+        # Remove as linhas de grade que podem poluir o visual
+        fig.update_xaxes(side="bottom", showgrid=False)
+        fig.update_yaxes(showgrid=False)
+        
         return fig
 
     with col_pearson:
         st.markdown("#### 🔵 Pearson (Linear)")
         corr_p = df_corr_renomeado[colunas_numericas].corr(method='pearson')
-        fig_p = criar_heatmap_plotly(corr_p, "Matriz de Pearson", "RdBu_r")
+        fig_p = criar_heatmap_clean(corr_p, "Correlação Linear")
         st.plotly_chart(fig_p, use_container_width=True)
 
     with col_spearman:
-        st.markdown("#### 🟢 Spearman (Rank)")
+        st.markdown("#### 🟢 Spearman (Posto)")
         corr_s = df_corr_renomeado[colunas_numericas].corr(method='spearman')
-        fig_s = criar_heatmap_plotly(corr_s, "Matriz de Spearman", "Viridis")
+        fig_s = criar_heatmap_clean(corr_s, "Correlação Não-Linear")
         st.plotly_chart(fig_s, use_container_width=True)
 
 # --- 3. TESTE DE HIPÓTESES ---
