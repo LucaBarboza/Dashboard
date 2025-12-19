@@ -105,10 +105,10 @@ else:
     escala = "Viridis"
 
 # --- 4. CRIAÇÃO DAS ABAS ---
-tab1, tab2 = st.tabs(["🍂 Por Estação (Anos)", "📅 Por Mês (Detalhado)"])
+tab1, tab2 = st.tabs(["🍂 Estações por Ano", "📅 Linha do Tempo Estação por Estação"])
 
 # ==========================================
-# ABA 1: VISÃO SAZONAL (O que você já tinha)
+# ABA 1: VISÃO SAZONAL
 # ==========================================
 with tab1:
     st.markdown(f"**Análise Sazonal:** Veja como {var_label} mudou ao longo dos **Anos** para uma estação específica.")
