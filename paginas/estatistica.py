@@ -53,9 +53,10 @@ else:
 
 df_corr_renomeado = df_corr.rename(columns=cols_validas)
 
-# --- CONFIGURAÇÃO RESTRITA (Remove interatividade total) ---
-config_estatica = {
-    'staticPlot': True,
+# --- CONFIGURAÇÃO: APENAS HOVER (Sem botões, sem zoom) ---
+config_clean_hover = {
+    'displayModeBar': False,
+    'scrollZoom': False,
     'displaylogo': False,
 }
 
@@ -70,7 +71,8 @@ with st.expander("Ver Matrizes de Correlação", expanded=True):
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=20, r=20, t=50, b=20),
-            coloraxis_colorbar=dict(title="Corr")
+            coloraxis_colorbar=dict(title="Corr"),
+            dragmode=False 
         )
         return fig
 
@@ -84,7 +86,7 @@ with st.expander("Ver Matrizes de Correlação", expanded=True):
             color_continuous_scale="RdBu_r", 
             zmin=-1, zmax=1
         )
-        st.plotly_chart(configurar_layout_limpo(fig_p), use_container_width=True, config=config_estatica)
+        st.plotly_chart(configurar_layout_limpo(fig_p), use_container_width=True, config=config_clean_hover)
 
     with col_spearman:
         st.markdown("#### 🟢 Spearman (Rank)")
@@ -96,6 +98,6 @@ with st.expander("Ver Matrizes de Correlação", expanded=True):
             color_continuous_scale="RdYlGn", 
             zmin=-1, zmax=1
         )
-        st.plotly_chart(configurar_layout_limpo(fig_s), use_container_width=True, config=config_estatica)
+        st.plotly_chart(configurar_layout_limpo(fig_s), use_container_width=True, config=config_clean_hover)
 
 st.markdown("---")
