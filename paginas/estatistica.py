@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", page_title="Análise Climática Brasil")
 
 st.header("📊 Laboratório de Análise Estatística")
-st.markdown("Exploração de correlações climáticas por estado e nível nacional.")
+st.markdown("Exploração de correlações climáticas por estado e nível nacional (2015-2021).")
 
 # --- 1. CARREGAMENTO E PREPARAÇÃO DOS DADOS ---
 @st.cache_data
@@ -16,7 +16,7 @@ def carregar_dados_stats():
         try:
             df = pd.read_csv("clima_brasil_semanal_refinado_2015.csv")
         except:
-            st.error("Erro: CSV não encontrado.")
+            st.error("Erro: Base de dados não encontrada.")
             st.stop()
     return df
 
@@ -39,6 +39,7 @@ st.markdown("---")
 # --- 2. ANÁLISE DE CORRELAÇÃO ---
 st.subheader("1. Matrizes de Correlação (Pearson vs Spearman)")
 
+# Filtro de Estado
 if 'state' in df.columns:
     estados_disponiveis = ["Brasil (Todos)"] + sorted(df['state'].unique().tolist())
     estado_selecionado = st.selectbox("Selecione o Estado para as Matrizes:", estados_disponiveis)
@@ -53,11 +54,17 @@ else:
 
 df_corr_renomeado = df_corr.rename(columns=cols_validas)
 
-# --- CONFIGURAÇÃO: APENAS HOVER (Sem botões, sem zoom) ---
-config_clean_hover = {
-    'displayModeBar': False,
-    'scrollZoom': False,
+# --- CONFIGURAÇÃO: FOCO NO DADO + TELA CHEIA ---
+# Remove botões de edição, mas mantém o de tela cheia do Plotly
+config_custom = {
+    'displayModeBar': True,
     'displaylogo': False,
+    'scrollZoom': False,
+    'modeBarButtonsToRemove': [
+        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 
+        'zoomOut2d', 'autoScale2d', 'resetScale2d', 'hoverClosestCartesian', 
+        'hoverCompareCartesian', 'toggleSpikelines'
+    ]
 }
 
 with st.expander("Ver Matrizes de Correlação", expanded=True):
@@ -65,19 +72,19 @@ with st.expander("Ver Matrizes de Correlação", expanded=True):
     
     col_pearson, col_spearman = st.columns(2)
     
-    def configurar_layout_limpo(fig):
+    def aplicar_estilo_matriz(fig):
         fig.update_layout(
-            height=550, 
+            height=600, 
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=20, r=20, t=50, b=20),
-            coloraxis_colorbar=dict(title="Corr"),
-            dragmode=False 
+            coloraxis_colorbar=dict(title="Grau"),
+            dragmode=False
         )
         return fig
 
     with col_pearson:
-        st.markdown("#### 🔵 Pearson (Linear)")
+        st.markdown("#### 🔵 Pearson (Relação Linear)")
         corr_p = df_corr_renomeado[colunas_numericas].corr(method='pearson')
         fig_p = px.imshow(
             corr_p,
@@ -86,10 +93,10 @@ with st.expander("Ver Matrizes de Correlação", expanded=True):
             color_continuous_scale="RdBu_r", 
             zmin=-1, zmax=1
         )
-        st.plotly_chart(configurar_layout_limpo(fig_p), use_container_width=True, config=config_clean_hover)
+        st.plotly_chart(aplicar_estilo_matriz(fig_p), use_container_width=True, config=config_custom)
 
     with col_spearman:
-        st.markdown("#### 🟢 Spearman (Rank)")
+        st.markdown("#### 🟢 Spearman (Relação de Posto)")
         corr_s = df_corr_renomeado[colunas_numericas].corr(method='spearman')
         fig_s = px.imshow(
             corr_s,
@@ -98,6 +105,6 @@ with st.expander("Ver Matrizes de Correlação", expanded=True):
             color_continuous_scale="RdYlGn", 
             zmin=-1, zmax=1
         )
-        st.plotly_chart(configurar_layout_limpo(fig_s), use_container_width=True, config=config_clean_hover)
+        st.plotly_chart(aplicar_estilo_matriz(fig_s), use_container_width=True, config=config_custom)
 
 st.markdown("---")
