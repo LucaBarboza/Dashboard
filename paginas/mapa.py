@@ -149,6 +149,8 @@ with tab1:
         dragmode=False,
         coloraxis_colorbar=dict(title=var_label)
     )
+
+    fig1.layout.sliders[0].currentvalue.prefix = "Ano: "
     
     # Ajuste de velocidade
     try:
@@ -222,6 +224,8 @@ with tab2:
         dragmode=False,
         coloraxis_colorbar=dict(title=var_label)
     )
+
+    fig2.layout.sliders[0].currentvalue.prefix = ""
 
     # Velocidade: Como temos menos frames (4 por ano), podemos deixar mais lento para apreciar (800ms)
     try:
