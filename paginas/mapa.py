@@ -2,70 +2,77 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import requests
-import gc # Garbage Collector para limpar memória na marra
 
-# --- 1. CONFIGURAÇÃO OTIMIZADA ---
-st.set_page_config(page_title="Monitor Climático", layout="wide")
+# --- CONFIGURAÇÃO VISUAL ---
+st.set_page_config(layout="wide") # Opcional: aumenta o espaço lateral
+config_padrao = {
+    'scrollZoom': False,
+    'displaylogo': False,
+    'modeBarButtonsToRemove': [
+        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+        'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d',
+        'toImage', 'toggleHover'
+    ]
+}
 
-# Limpeza de memória forçada no início
-gc.collect()
+# --- TÍTULO ---
+st.header("🌍 Mapa Animado: Evolução Climática")
+st.markdown("Navegue pelas abas abaixo para alternar entre a visão por **Estações** ou **Mensal**.")
 
-# --- 2. CARREGAMENTO COM MEMÓRIA REDUZIDA ---
+# --- 1. CARREGAMENTO DE DADOS E GEOJSON ---
 @st.cache_data(ttl=3600)
-def carregar_dados_otimizados():
+def carregar_dados_mapa():
     try:
-        # Tenta carregar
+        # Tenta carregar do caminho padrão ou raiz
         try:
             df = pd.read_csv("dataframe/clima_brasil_semanal_refinado_2015.csv")
         except:
             df = pd.read_csv("clima_brasil_semanal_refinado_2015.csv")
             
-        # OTIMIZAÇÃO DE MEMÓRIA: Converter tipos pesados
-        cols_numericas = ['temperatura_media', 'chuva_media_semanal', 'umidade_media', 'vento_medio', 'radiacao_media']
-        for col in cols_numericas:
-            if col in df.columns:
-                # float32 usa METADE da memória do float64 padrão
-                df[col] = pd.to_numeric(df[col], downcast='float')
-
-        # Datas
+        # Tratamento de Datas
         if 'semana_ref' in df.columns:
             df['semana_ref'] = pd.to_datetime(df['semana_ref'])
             df['ano'] = df['semana_ref'].dt.year
             df['mes'] = df['semana_ref'].dt.month
-            # Converter string para category economiza memória se houver muitas repetições
-            df['ano_mes'] = df['semana_ref'].dt.strftime('%Y-%m').astype('category')
             
+            # Função para Estação
             def get_estacao(m):
                 if m in [12, 1, 2]: return "Verão"
                 elif m in [3, 4, 5]: return "Outono"
                 elif m in [6, 7, 8]: return "Inverno"
                 else: return "Primavera"
-            df['estacao'] = df['mes'].apply(get_estacao).astype('category')
-            df['state'] = df['state'].astype('category') # Otimização crítica
+            df['estacao'] = df['mes'].apply(get_estacao)
+            
+            # Mapeamento para nome do mês (para a animação mensal ficar bonita)
+            mapa_meses = {1:'01-Jan', 2:'02-Fev', 3:'03-Mar', 4:'04-Abr', 5:'05-Mai', 6:'06-Jun',
+                          7:'07-Jul', 8:'08-Ago', 9:'09-Set', 10:'10-Out', 11:'11-Nov', 12:'12-Dez'}
+            df['nome_mes'] = df['mes'].map(mapa_meses)
             
         return df
     except Exception as e:
-        st.error(f"Erro dados: {e}")
+        st.error(f"Erro ao carregar dados: {e}")
         st.stop()
 
-# Cache Resource é melhor para arquivos estáticos grandes como GeoJSON
-@st.cache_resource(ttl=3600) 
+@st.cache_data(ttl=3600)
 def carregar_geojson():
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
     try:
-        r = requests.get(url, timeout=10)
-        if r.status_code == 200: return r.json()
-    except: pass
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            return response.json()
+    except Exception as e:
+        st.error(f"Erro ao baixar mapa (GeoJSON): {e}")
     return None
 
-df = carregar_dados_otimizados()
+df = carregar_dados_mapa()
 geojson = carregar_geojson()
 
-if df is None or geojson is None:
-    st.warning("Dados não carregados.")
+if geojson is None:
     st.stop()
 
-# --- 3. ESCALAS (Calculadas uma vez) ---
+# --- 2. CÁLCULO DE ESCALAS GLOBAIS (TRAVAMENTO) ---
+# Aqui definimos o min e max de TODO o histórico para cada variável.
+# Isso garante que a cor vermelha signifique a mesma coisa em todas as abas.
 global_ranges = {
     "temperatura_media": [df['temperatura_media'].min(), df['temperatura_media'].max()],
     "chuva_media_semanal": [df['chuva_media_semanal'].min(), df['chuva_media_semanal'].max()],
@@ -74,8 +81,9 @@ global_ranges = {
     "radiacao_media": [df['radiacao_media'].min(), df['radiacao_media'].max()]
 }
 
-# --- 4. SIDEBAR ---
-st.sidebar.header("⚙️ Filtros")
+# --- 3. CONTROLES GERAIS (SIDEBAR) ---
+st.sidebar.header("Configurações")
+
 variaveis = {
     "Temperatura (°C)": "temperatura_media",
     "Chuva (mm)": "chuva_media_semanal",
@@ -83,69 +91,121 @@ variaveis = {
     "Vento (m/s)": "vento_medio",
     "Radiação": "radiacao_media"
 }
-var_label = st.sidebar.selectbox("Variável:", list(variaveis.keys()))
+var_label = st.sidebar.selectbox("O que você quer visualizar?", list(variaveis.keys()))
 var_col = variaveis[var_label]
 
-# Cores
-if "chuva" in var_col: escala = "Blues"
-elif "temperatura" in var_col: escala = "RdYlBu_r"
-elif "umidade" in var_col: escala = "YlGnBu"
-else: escala = "Viridis"
+# Definição da Paleta de Cores (Baseada na variável escolhida)
+if "chuva" in var_col:
+    escala = "Blues"
+elif "temperatura" in var_col:
+    escala = "RdYlBu_r" 
+elif "umidade" in var_col:
+    escala = "YlGnBu"
+else:
+    escala = "Viridis"
 
-# --- 5. VISUALIZAÇÃO LEVE ---
-st.title("🌍 Monitor Climático (Modo Leve)")
-st.caption("Use os sliders abaixo para navegar no tempo. Otimizado para não travar.")
+# --- 4. CRIAÇÃO DAS ABAS ---
+tab1, tab2 = st.tabs(["🍂 Por Estação (Anos)", "📅 Por Mês (Detalhado)"])
 
-tab1, tab2 = st.tabs(["🍂 Por Estação (Anual)", "⏳ Mensal (Detalhado)"])
-
-# === ABA 1: ANUAL (SEM ANIMAÇÃO AUTOMÁTICA) ===
+# ==========================================
+# ABA 1: VISÃO SAZONAL (O que você já tinha)
+# ==========================================
 with tab1:
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        estacao = st.radio("Estação:", ["Verão", "Outono", "Inverno", "Primavera"])
-    with c2:
-        # Slider manual substitui o botão Play
-        anos_disponiveis = sorted(df['ano'].unique())
-        ano_sel = st.select_slider("Selecione o Ano:", options=anos_disponiveis, value=anos_disponiveis[-1])
+    st.markdown(f"**Análise Sazonal:** Veja como {var_label} mudou ao longo dos **Anos** para uma estação específica.")
     
-    # Filtra APENAS O NECESSÁRIO para este momento
-    df_filtrado = df[(df['estacao'] == estacao) & (df['ano'] == ano_sel)]
-    # Agrupa
-    df_mapa1 = df_filtrado.groupby('state')[var_col].mean().reset_index()
+    col_filtro1, col_filtro2 = st.columns([1, 3])
+    with col_filtro1:
+        estacao_selecionada = st.radio(
+            "Escolha a Estação:",
+            ["Verão", "Outono", "Inverno", "Primavera"],
+            horizontal=False
+        )
     
-    # Plota
+    # Processamento
+    df_filtrado = df[df['estacao'] == estacao_selecionada].copy()
+    # Agrupa por ANO e ESTADO
+    df_animacao = df_filtrado.groupby(['ano', 'state'])[var_col].mean().reset_index()
+    df_animacao = df_animacao.sort_values(['ano', 'state']) # Ordenação para estabilidade
+
+    # Gráfico Tab 1
     fig1 = px.choropleth_mapbox(
-        df_mapa1, geojson=geojson, locations='state', featureidkey="properties.sigla",
-        color=var_col, 
-        color_continuous_scale=escala, range_color=global_ranges[var_col],
-        mapbox_style="carto-positron", zoom=3, center={"lat": -15, "lon": -54}, opacity=0.9, height=500
+        df_animacao,
+        geojson=geojson,
+        locations='state',
+        featureidkey="properties.sigla",
+        color=var_col,
+        animation_frame="ano", # Animação corre pelos ANOS
+        color_continuous_scale=escala,
+        range_color=global_ranges[var_col], # <--- TRAVAMENTO DE ESCALA AQUI
+        mapbox_style="carto-positron",
+        zoom=3.0,
+        center={"lat": -15.0, "lon": -54.0},
+        opacity=0.9,
+        height=600
     )
-    fig1.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, dragmode=False)
-    st.plotly_chart(fig1, use_container_width=True)
     
-    # Limpa variável temporária
-    del df_filtrado, df_mapa1
+    fig1.update_layout(
+        margin={"r":0,"t":0,"l":0,"b":0},
+        dragmode=False,
+        coloraxis_colorbar=dict(title=var_label)
+    )
+    
+    # Ajuste de velocidade
+    try:
+        fig1.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1000
+    except: pass
 
-# === ABA 2: MENSAL (SEM ANIMAÇÃO AUTOMÁTICA) ===
+    st.plotly_chart(fig1, use_container_width=True, config=config_padrao)
+
+
+# ==========================================
+# ABA 2: VISÃO MENSAL (Novo)
+# ==========================================
 with tab2:
-    lista_meses = sorted(df['ano_mes'].unique())
-    # Slider manual
-    mes_sel = st.select_slider("Linha do Tempo (Mês/Ano):", options=lista_meses, value=lista_meses[-1])
+    st.markdown(f"**Análise Mensal:** Veja a variação de Jan a Dez dentro de um ano específico.")
     
-    # Filtragem pontual
-    df_mes = df[df['ano_mes'] == mes_sel].groupby('state')[var_col].mean().reset_index()
+    # Filtro de Ano específico para esta aba
+    lista_anos = sorted(df['ano'].unique())
+    ano_selecionado = st.select_slider("Selecione o Ano para detalhar:", options=lista_anos, value=lista_anos[-1])
     
+    # Processamento
+    df_mensal = df[df['ano'] == ano_selecionado].copy()
+    # Agrupa por MÊS e ESTADO
+    # Incluímos 'nome_mes' no groupby para usá-lo na animação, e 'mes' para ordenar corretamente
+    df_anim_mensal = df_mensal.groupby(['mes', 'nome_mes', 'state'])[var_col].mean().reset_index()
+    df_anim_mensal = df_anim_mensal.sort_values(['mes', 'state']) # Garante Jan -> Dez e Estados A-Z
+
+    # Gráfico Tab 2
     fig2 = px.choropleth_mapbox(
-        df_mes, geojson=geojson, locations='state', featureidkey="properties.sigla",
-        color=var_col, 
-        color_continuous_scale=escala, range_color=global_ranges[var_col],
-        mapbox_style="carto-positron", zoom=3, center={"lat": -15, "lon": -54}, opacity=0.9, height=500
+        df_anim_mensal,
+        geojson=geojson,
+        locations='state',
+        featureidkey="properties.sigla",
+        color=var_col,
+        animation_frame="nome_mes", # Animação corre pelos MESES (Jan, Fev...)
+        color_continuous_scale=escala,
+        range_color=global_ranges[var_col], # <--- MESMA ESCALA DA ABA 1
+        mapbox_style="carto-positron",
+        zoom=3.0,
+        center={"lat": -15.0, "lon": -54.0},
+        opacity=0.9,
+        height=600
     )
-    fig2.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, dragmode=False)
-    st.plotly_chart(fig2, use_container_width=True)
 
-    # Limpa variável temporária
-    del df_mes
+    fig2.update_layout(
+        margin={"r":0,"t":0,"l":0,"b":0},
+        dragmode=False,
+        coloraxis_colorbar=dict(title=var_label)
+    )
 
-# Força limpeza final de RAM
-gc.collect()
+    # Velocidade um pouco mais rápida para os meses
+    try:
+        fig2.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 500
+    except: pass
+
+    st.plotly_chart(fig2, use_container_width=True, config=config_padrao)
+
+# --- TABELA DE DADOS (EXPANSÍVEL GERAL) ---
+st.divider()
+with st.expander("🔎 Ver Tabela de Dados Brutos"):
+    st.dataframe(df.head(500), use_container_width=True)
