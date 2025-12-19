@@ -187,7 +187,8 @@ else:
         # CONFIGURAÇÃO DE LAYOUT TRAVADO
         fig_line_reg.update_layout(
             xaxis=dict(fixedrange=True, title="Data"), 
-            yaxis=dict(fixedrange=True, title=var_label)
+            yaxis=dict(fixedrange=True, title=var_label),
+            legend_title_text="Região"
         )
         st.plotly_chart(fig_line_reg, use_container_width=True, config=config_padrao)
 
