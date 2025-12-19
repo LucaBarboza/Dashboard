@@ -37,11 +37,11 @@ Sua missão é explicar para a banca avaliadora ou usuários como este projeto f
 AQUI ESTÁ A DOCUMENTAÇÃO TÉCNICA DO PROJETO:
 
 1. DADOS:
-- Fonte: INMET (Instituto Nacional de Meteorologia).
+- Fonte: INMET (Instituto Nacional de Meteorologia) via Kaggle.
 - Período: 2015 a 2021.
-- Granularidade original: Semanal.
+- Granularidade original: Por hora.
 - Variáveis: Temperatura, Chuva, Umidade, Vento, Pressão, Radiação.
-- Tratamento: Limpeza de NaNs e criação de colunas temporais (Ano, Mês, Estação).
+- Tratamento: Limpeza de NaNs e criação de colunas temporais (Ano, Mês, Estação). Foram agrupados em grupos de tempo (semana, mes e ano).
 
 2. PÁGINA: DASHBOARD INTERATIVO
 - Objetivo: Análise descritiva.
