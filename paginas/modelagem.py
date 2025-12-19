@@ -33,7 +33,14 @@ def carregar_dados_ml():
     cols_numericas = ['chuva_media_semanal', 'temperatura_media', 'umidade_media', 
                       'vento_medio', 'pressao_media', 'radiacao_media']
     # Mapeamento para nomes bonitos
-    mapa = {c: c.replace('_media', '').replace('_medio', '').replace('_semanal', '').capitalize() for c in cols_numericas}
+    mapa = {
+        'chuva_media_semanal': 'Chuva',
+        'temperatura_media': 'Temperatura',
+        'umidade_media': 'Umidade',
+        'vento_medio': 'Vento',
+        'pressao_media': 'Pressão',
+        'radiacao_media': 'Radiação'
+    }
     
     df = df.dropna(subset=cols_numericas)
     return df, mapa
@@ -69,10 +76,20 @@ with tab1:
     
     col1, col2 = st.columns(2)
     with col1:
-        target = st.selectbox("🎯 Variável Alvo (Y):", list(mapa_nomes.keys()), format_func=lambda x: mapa_nomes[x], index=1)
+        target = st.selectbox(
+            "🎯 Variável Alvo (Y):", 
+            list(mapa_nomes.keys()), 
+            format_func=lambda x: mapa_nomes[x], # Mostra nome bonito
+            index=1
+        )
     with col2:
         features_possiveis = [c for c in mapa_nomes.keys() if c != target]
-        features = st.multiselect("📊 Variáveis Explicativas (X):", features_possiveis, default=[features_possiveis[0]])
+        features = st.multiselect(
+            "📊 Variáveis Explicativas (X):", 
+            features_possiveis, 
+            default=[features_possiveis[0]],
+            format_func=lambda x: mapa_nomes[x] # <--- AQUI ESTÁ A MUDANÇA (Nome bonito no X também)
+        )
 
     if features:
         # Preparação
@@ -94,7 +111,11 @@ with tab1:
         c2.metric("Erro Médio (MAE)", f"{mae:.2f}", help="Erro médio absoluto na unidade da variável.")
         
         # Tabela de Coeficientes
-        coef_df = pd.DataFrame({'Variável': features, 'Impacto (Coef)': model.coef_})
+        # Aqui usamos map para mostrar o nome bonito na tabela também
+        coef_df = pd.DataFrame({
+            'Variável': [mapa_nomes[f] for f in features], 
+            'Impacto (Coef)': model.coef_
+        })
         coef_df = coef_df.sort_values(by='Impacto (Coef)', key=abs, ascending=False)
         st.markdown("#### ⚖️ Peso de cada Variável")
         st.dataframe(coef_df, hide_index=True, use_container_width=True)
@@ -149,6 +170,8 @@ with tab2:
         
         with st.expander("Ver detalhes dos grupos"):
             resumo = df_estado.groupby('Cluster')[features_cluster].mean().reset_index()
+            # Renomeia colunas para ficar bonito no dataframe também
+            resumo = resumo.rename(columns=mapa_nomes)
             st.dataframe(resumo.style.background_gradient(cmap='Blues'), use_container_width=True)
 
 # ==============================================================================
