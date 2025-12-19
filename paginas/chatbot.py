@@ -19,6 +19,7 @@ if not api_key:
     if "GEMINI_KEY" in st.secrets:
         api_key = st.secrets["GEMINI_KEY"]
     else:
+        st.warning("⚠️ Insira a chave da API do Google Gemini na barra lateral para começar.")
         st.stop()
 
 try:
@@ -32,13 +33,21 @@ except Exception as e:
 # --- 2. GERAÇÃO DE MEMÓRIA (DADOS + DOCUMENTAÇÃO) ---
 @st.cache_data
 def criar_contexto_completo():
-    # A. Carrega e Resume os Dados Reais
+    # A. Carrega os Dados
     try:
         df = pd.read_csv("dataframe/clima_brasil_semanal_refinado_2015.csv")
     except:
         df = pd.read_csv("clima_brasil_semanal_refinado_2015.csv")
 
+    # --- CORREÇÃO: TRATAMENTO DE DADOS (CRIAÇÃO DA COLUNA ANO) ---
+    if 'semana_ref' in df.columns:
+        df['semana_ref'] = pd.to_datetime(df['semana_ref'])
+        df['ano'] = df['semana_ref'].dt.year
+        df['mes'] = df['semana_ref'].dt.month
+    # -------------------------------------------------------------
+
     # Criação do "Cheat Sheet" de Dados (Resumo Numérico Leve)
+    # Agora a coluna 'ano' existe, então o groupby vai funcionar
     resumo_dados = f"""
     [ESTATÍSTICAS GERAIS DOS DADOS REAIS 2015-2021]
     - Total de Registros Analisados: {len(df)} linhas (semanais).
@@ -55,7 +64,7 @@ def criar_contexto_completo():
     {df.groupby('ano')['temperatura_media'].mean().to_string()}
     """
 
-    # B. A Documentação Técnica (Seu Prompt Original)
+    # B. A Documentação Técnica
     doc_tecnica = """
     AQUI ESTÁ A DOCUMENTAÇÃO TÉCNICA DO PROJETO:
 
