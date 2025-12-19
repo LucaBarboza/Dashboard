@@ -4,7 +4,7 @@ import plotly.express as px
 
 st.set_page_config(layout="wide", page_title="Análise Climática Brasil")
 
-st.header("📊 Laboratório de Análise Estatística")
+st.header("📈 Matrizes de Correlção")
 st.markdown("Exploração de correlações climáticas por estado e nível nacional (2015-2021).")
 
 # --- 1. CARREGAMENTO E PREPARAÇÃO DOS DADOS ---

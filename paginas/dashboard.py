@@ -60,7 +60,7 @@ for regiao in unique_regions:
         cores_estados[estado] = cor
 
 # --- TÍTULO ---
-st.title("Dashboard Climático")
+st.title("📊 Dashboard Climático")
 
 # --- SELEÇÃO DE VARIÁVEIS ---
 cols_numericas = {
