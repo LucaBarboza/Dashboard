@@ -45,7 +45,7 @@ AQUI ESTÁ A DOCUMENTAÇÃO TÉCNICA DO PROJETO:
 
 2. PÁGINA: DASHBOARD INTERATIVO
 - Objetivo: Análise descritiva.
-- O que faz: Mostra médias, desvio padrão e extremos.
+- O que faz: Mostra médias, medianas, desvio padrão e extremos.
 - Gráficos: Usa Boxplots e Gráficos de Linha.
 - Detalhe técnico: Permite filtrar por Região e Estado simultaneamente.
 
@@ -59,7 +59,7 @@ AQUI ESTÁ A DOCUMENTAÇÃO TÉCNICA DO PROJETO:
 - Métodos: 
   a) Pearson: Para relações lineares (Reta).
   b) Spearman: Para relações monotônicas (Rank).
-- Visual: Heatmaps comparativos lado a lado.
+- Visual: Heatmaps (Matrizes de Correlação) comparativos lado a lado.
 
 5. PÁGINA: TESTE DE HIPÓTESES (A MAIS COMPLEXA)
 - Objetivo: Validar se diferenças (ex: Norte vs Sul) são reais ou acaso.
