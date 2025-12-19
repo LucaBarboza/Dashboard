@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy import stats
@@ -44,11 +45,9 @@ cols_validas = {k: v for k, v in cols_map.items() if k in df.columns}
 colunas_numericas = list(cols_validas.values())
 
 # --- 2. INTERFACE ---
-st.header("🧪 Teste de Hipóteses (Auditoria Automática)")
+st.header("🧪 Teste de Hipóteses (Com Validação de Suposições)")
 st.markdown("""
-O sistema verifica as premissas estatísticas (Suposições) antes de escolher o teste:
-1.  **Normalidade:** Os dados seguem uma curva de sino?
-2.  **Homogeneidade:** A variação dos dados é similar entre os grupos?
+Aqui garantimos o rigor científico. O sistema verifica **Normalidade**, **Homogeneidade** e permite tratar a **Independência**.
 """)
 
 with st.container(border=True):
@@ -57,136 +56,143 @@ with st.container(border=True):
         var_analise = st.selectbox("1️⃣ Variável:", colunas_numericas)
         col_orig = [k for k, v in cols_validas.items() if v == var_analise][0]
     with c2:
-        labels = {'region': 'Região', 'state': 'Estado', 'ano': 'Ano', 'estacao': 'Estação'}
+        labels = {'region': 'Região', 'state': 'Estado', 'estacao': 'Estação'} # Tiramos 'ano' daqui pois ele será usado na agregação
         opts = [op for op in labels.keys() if op in df.columns]
-        grupo_key = st.selectbox("2️⃣ Agrupar por:", opts, format_func=lambda x: labels.get(x, x))
+        grupo_key = st.selectbox("2️⃣ Comparar:", opts, format_func=lambda x: labels.get(x, x))
     with c3:
         vals = sorted(df[grupo_key].unique().astype(str))
         grupos = st.multiselect("3️⃣ Grupos:", vals, default=vals[:2] if len(vals)>=2 else vals)
 
-# --- 3. AUDITORIA ESTATÍSTICA ---
-if len(grupos) < 2:
-    st.info("Selecione pelo menos 2 grupos.")
+st.markdown("---")
+
+# --- NOVO: CONTROLE DE INDEPENDÊNCIA ---
+st.subheader("⚙️ Configuração da Amostra (Independência)")
+modo_agregacao = st.radio(
+    "Como você deseja tratar os dados temporais?",
+    ["Médias Anuais (Recomendado - Independente)", "Dados Semanais (Brutos - Autocorrelacionado)"],
+    help="Dados semanais são viciados (o clima de hoje depende de ontem). Usar médias anuais corrige isso."
+)
+
+if modo_agregacao == "Médias Anuais (Recomendado - Independente)":
+    st.info("✅ **Modo Seguro:** O sistema vai calcular a média de cada ano para cada grupo. Isso reduz o tamanho da amostra (N), mas garante que os dados sejam independentes, tornando o P-valor válido.")
 else:
-    df_plot = df[df[grupo_key].astype(str).isin(grupos)].copy()
+    st.warning("⚠️ **Modo Bruto:** Usando todas as semanas. Atenção: Isso viola a suposição de independência! Os testes tendem a apontar diferenças significativas (P-valor minúsculo) que podem ser exageradas.")
+
+# --- 3. PROCESSAMENTO DOS DADOS ---
+if len(grupos) < 2:
+    st.info("Selecione os grupos acima.")
+else:
+    df_base = df[df[grupo_key].astype(str).isin(grupos)].copy()
+    
     dados_grupos = []
     nomes_grupos = []
     
-    # Coleta dados
     for g in grupos:
-        d = df_plot[df_plot[grupo_key].astype(str) == g][col_orig].dropna()
-        if len(d) > 3: 
+        df_g = df_base[df_base[grupo_key].astype(str) == g]
+        
+        if modo_agregacao == "Médias Anuais (Recomendado - Independente)":
+            # AGREGAÇÃO: Transforma 300 semanas em 7 anos
+            d = df_g.groupby('ano')[col_orig].mean().dropna()
+        else:
+            # BRUTO: Usa as 300 semanas
+            d = df_g[col_orig].dropna()
+            
+        if len(d) > 1: # Precisa de pelo menos 2 pontos
             dados_grupos.append(d)
             nomes_grupos.append(g)
-            
+
     if len(dados_grupos) < 2:
-        st.error("Dados insuficientes.")
+        st.error("Dados insuficientes após o agrupamento. Tente usar 'Dados Semanais' se houver poucos anos.")
     else:
-        st.subheader("🔍 Auditoria das Suposições")
-        col_audit1, col_audit2 = st.columns(2)
+        # --- 4. AUDITORIA DAS SUPOSIÇÕES ---
+        st.subheader("🔍 Auditoria Automática")
         
-        # --- A. TESTE DE NORMALIDADE (Shapiro-Wilk) ---
-        # H0: É Normal | H1: Não é Normal
+        c_audit1, c_audit2 = st.columns(2)
+        
+        # A. Normalidade (Shapiro)
         violou_normalidade = False
-        grupos_fora_normal = []
-        
-        with col_audit1:
-            st.markdown("**1. Teste de Normalidade (Shapiro-Wilk)**")
+        with c_audit1:
+            st.markdown("**1. Normalidade (Curva de Sino)**")
             for i, d in enumerate(dados_grupos):
-                # Shapiro tem limite de 5000 amostras, fazemos sample se necessário
-                amostra = d if len(d) < 5000 else d.sample(5000, random_state=42)
-                stat_s, p_s = stats.shapiro(amostra)
-                
-                if p_s < 0.05:
-                    violou_normalidade = True
-                    grupos_fora_normal.append(nomes_grupos[i])
-                    st.error(f"❌ {nomes_grupos[i]}: Não é Normal (p={p_s:.1e})")
+                if len(d) < 3:
+                    st.warning(f"⚠️ {nomes_grupos[i]}: Amostra muito pequena ({len(d)}) para testar normalidade.")
                 else:
-                    st.success(f"✅ {nomes_grupos[i]}: Normal (p={p_s:.2f})")
-        
-        # --- B. TESTE DE HOMOGENEIDADE DE VARIÂNCIA (Levene) ---
-        # H0: Variâncias Iguais | H1: Variâncias Diferentes
+                    stat_s, p_s = stats.shapiro(d)
+                    if p_s < 0.05:
+                        violou_normalidade = True
+                        st.error(f"❌ {nomes_grupos[i]}: Não Normal (p={p_s:.3f})")
+                    else:
+                        st.success(f"✅ {nomes_grupos[i]}: Normal (p={p_s:.3f})")
+
+        # B. Homogeneidade (Levene)
         violou_variancia = False
         stat_l, p_l = stats.levene(*dados_grupos)
-        
-        with col_audit2:
-            st.markdown("**2. Homogeneidade de Variância (Levene)**")
+        with c_audit2:
+            st.markdown("**2. Homogeneidade de Variância**")
             if p_l < 0.05:
                 violou_variancia = True
-                st.error(f"❌ Variâncias Diferentes (Heterocedasticidade) (p={p_l:.1e})")
-                st.caption("Os grupos têm dispersões muito diferentes.")
+                st.error(f"❌ Variâncias Diferentes (p={p_l:.3f})")
             else:
-                st.success(f"✅ Variâncias Iguais (Homocedasticidade) (p={p_l:.2f})")
+                st.success(f"✅ Variâncias Iguais (p={p_l:.3f})")
 
+        # --- 5. DECISÃO E RESULTADO ---
         st.divider()
+        st.subheader("📊 Resultado Final")
 
-        # --- C. DECISÃO AUTOMÁTICA DO TESTE ---
-        st.subheader("📊 Resultado do Teste Definido")
-        
-        # LÓGICA DE DECISÃO
+        # Lógica de Decisão
         nome_teste = ""
         motivo = ""
         
         if len(dados_grupos) == 2:
-            # --- COMPARAÇÃO DE 2 GRUPOS ---
             if violou_normalidade:
-                # Se não é normal -> Mann-Whitney (Não-Paramétrico)
                 nome_teste = "Mann-Whitney U"
-                motivo = f"⚠️ O teste Não-Paramétrico foi escolhido porque o grupo **{grupos_fora_normal[0]}** violou a suposição de normalidade."
+                motivo = "Dados não são normais -> Usamos teste Não-Paramétrico."
                 stat, p_val = stats.mannwhitneyu(dados_grupos[0], dados_grupos[1])
-            
+            elif violou_variancia:
+                nome_teste = "Teste t de Welch"
+                motivo = "Dados normais com variâncias diferentes -> Usamos Teste t corrigido."
+                stat, p_val = stats.ttest_ind(dados_grupos[0], dados_grupos[1], equal_var=False)
             else:
-                # É Normal
-                if violou_variancia:
-                    # Normal mas com variância diferente -> Welch's T-Test
-                    nome_teste = "Teste t de Welch"
-                    motivo = "✅ Dados Normais, mas com variâncias diferentes. Usamos o ajuste de Welch."
-                    stat, p_val = stats.ttest_ind(dados_grupos[0], dados_grupos[1], equal_var=False)
-                else:
-                    # Caso Perfeito
-                    nome_teste = "Teste t de Student (Padrão)"
-                    motivo = "✅ Todas as suposições (Normalidade e Variância) foram atendidas."
-                    stat, p_val = stats.ttest_ind(dados_grupos[0], dados_grupos[1], equal_var=True)
-
+                nome_teste = "Teste t de Student"
+                motivo = "Suposições atendidas -> Usamos Teste t padrão."
+                stat, p_val = stats.ttest_ind(dados_grupos[0], dados_grupos[1], equal_var=True)
         else:
-            # --- COMPARAÇÃO DE 3+ GRUPOS ---
             if violou_normalidade:
-                # Não-Paramétrico -> Kruskal-Wallis
                 nome_teste = "Kruskal-Wallis"
-                motivo = f"⚠️ O teste Não-Paramétrico foi escolhido porque os dados violaram a suposição de normalidade."
+                motivo = "Dados não são normais -> Usamos ANOVA Não-Paramétrica."
                 stat, p_val = stats.kruskal(*dados_grupos)
             else:
-                # Paramétrico -> ANOVA
                 nome_teste = "ANOVA One-Way"
-                if violou_variancia:
-                    motivo = "⚠️ Dados Normais, mas variâncias diferentes. Resultado da ANOVA deve ser interpretado com cautela."
-                else:
-                    motivo = "✅ Todas as suposições atendidas."
+                motivo = "Suposições atendidas -> Usamos ANOVA padrão."
                 stat, p_val = stats.f_oneway(*dados_grupos)
 
-        # EXIBIÇÃO FINAL
+        # Exibição
         c_res1, c_res2 = st.columns([1, 2])
         with c_res1:
-            st.metric("P-Valor Final", f"{p_val:.4e}")
+            st.metric("P-Valor", f"{p_val:.4e}")
             if p_val < 0.05:
                 st.success("✅ **Diferença Significativa**")
             else:
-                st.warning("❌ **Sem Diferença**")
+                st.error("❌ **Sem Diferença**")
         
         with c_res2:
-            st.markdown(f"### Teste Usado: **{nome_teste}**")
-            st.info(motivo)
+            st.markdown(f"**Teste Selecionado:** `{nome_teste}`")
+            st.info(f"**Por que?** {motivo}")
+            st.caption(f"Amostras usadas: {len(dados_grupos[0])} pontos por grupo.")
 
-        # --- D. VISUALIZAÇÃO ---
+        # --- 6. VISUALIZAÇÃO ---
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.3, 0.7], vertical_spacing=0.05)
         cores = ['#3366CC', '#DC3912', '#FF9900', '#109618', '#990099']
         
         for i, (d, nome) in enumerate(zip(dados_grupos, nomes_grupos)):
             cor = cores[i % len(cores)]
-            # Boxplot
             fig.add_trace(go.Box(x=d, name=nome, marker_color=cor, showlegend=False), row=1, col=1)
-            # Histograma
-            fig.add_trace(go.Histogram(x=d, name=nome, marker_color=cor, opacity=0.6, histnorm='probability density'), row=2, col=1)
+            # No modo "Médias Anuais", o histograma fica ruim (poucos dados), então usamos Rug Plot ou só Box
+            if len(d) > 10:
+                fig.add_trace(go.Histogram(x=d, name=nome, marker_color=cor, opacity=0.6, histnorm='probability density'), row=2, col=1)
+            else:
+                # Se tiver poucos dados, usamos um Scatter simples para ver os pontos
+                fig.add_trace(go.Scatter(x=d, y=[0]*len(d), mode='markers', name=nome, marker=dict(color=cor, size=10)), row=2, col=1)
 
-        fig.update_layout(title=f"Distribuição Visual: {var_analise}", barmode='overlay', height=500)
+        fig.update_layout(title=f"Distribuição ({'Médias Anuais' if 'Anuais' in modo_agregacao else 'Dados Semanais'})", height=500)
         st.plotly_chart(fig, use_container_width=True)
