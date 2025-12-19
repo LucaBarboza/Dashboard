@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import plotly.express as px
 from scipy import stats
 
 st.set_page_config(layout="wide")
@@ -54,42 +55,55 @@ st.markdown("---")
 # --- 2. ANÁLISE DE CORRELAÇÃO ---
 st.subheader("1. Matrizes de Correlação (Pearson vs Spearman)")
 
-# --- NOVO FILTRO DE ESTADO ---
 if 'state' in df.columns:
     estados_disponiveis = ["Brasil (Todos)"] + sorted(df['state'].unique().tolist())
     estado_selecionado = st.selectbox("Selecione o Estado para as Matrizes:", estados_disponiveis)
 
-    # Filtragem do dataframe baseada na seleção
     if estado_selecionado == "Brasil (Todos)":
         df_corr = df.copy()
     else:
         df_corr = df[df['state'] == estado_selecionado].copy()
 else:
     df_corr = df.copy()
-    st.warning("Coluna 'state' não encontrada para filtragem.")
+    estado_selecionado = "Brasil"
 
-# Aplicar renomeação no DF filtrado
 df_corr_renomeado = df_corr.rename(columns=cols_validas)
 
-with st.expander("Ver Matrizes de Correlação", expanded=True): # Alterado para True para facilitar a visualização inicial
+with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
     st.info(f"Exibindo correlações para: **{estado_selecionado}**")
+    
     col_pearson, col_spearman = st.columns(2)
     
+    # Configuração comum para remover o fundo branco e usar interatividade
+    def criar_heatmap_plotly(df_corr_matrix, titulo, colorscale):
+        fig = px.imshow(
+            df_corr_matrix,
+            text_auto=".2f",
+            aspect="auto",
+            color_continuous_scale=colorscale,
+            labels=dict(color="Correlação"),
+            title=titulo,
+            zmin=-1, zmax=1
+        )
+        # Ajuste de layout para remover o fundo branco e melhorar estética
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', # Fundo do papel transparente
+            plot_bgcolor='rgba(0,0,0,0)',  # Fundo do gráfico transparente
+            margin=dict(l=20, r=20, t=40, b=20)
+        )
+        return fig
+
     with col_pearson:
         st.markdown("#### 🔵 Pearson (Linear)")
         corr_p = df_corr_renomeado[colunas_numericas].corr(method='pearson')
-        fig_p, ax_p = plt.subplots(figsize=(8, 6))
-        sns.heatmap(corr_p, annot=True, cmap='coolwarm', fmt=".2f", vmin=-1, vmax=1, ax=ax_p)
-        st.pyplot(fig_p)
+        fig_p = criar_heatmap_plotly(corr_p, "Matriz de Pearson", "RdBu_r")
+        st.plotly_chart(fig_p, use_container_width=True)
 
     with col_spearman:
         st.markdown("#### 🟢 Spearman (Rank)")
         corr_s = df_corr_renomeado[colunas_numericas].corr(method='spearman')
-        fig_s, ax_s = plt.subplots(figsize=(8, 6))
-        sns.heatmap(corr_s, annot=True, cmap='viridis', fmt=".2f", vmin=-1, vmax=1, ax=ax_s)
-        st.pyplot(fig_s)
-
-st.markdown("---")
+        fig_s = criar_heatmap_plotly(corr_s, "Matriz de Spearman", "Viridis")
+        st.plotly_chart(fig_s, use_container_width=True)
 
 # --- 3. TESTE DE HIPÓTESES ---
 # (O restante do seu código permanece igual abaixo)
