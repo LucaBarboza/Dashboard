@@ -47,25 +47,44 @@ cols_map = {
     'umidade_media': 'Umidade'
 }
 cols_validas = {k: v for k, v in cols_map.items() if k in df.columns}
-df_renomeado = df.rename(columns=cols_validas)
 colunas_numericas = list(cols_validas.values())
 
 st.markdown("---")
 
 # --- 2. ANÁLISE DE CORRELAÇÃO ---
 st.subheader("1. Matrizes de Correlação (Pearson vs Spearman)")
-with st.expander("Ver Matrizes de Correlação", expanded=False):
+
+# --- NOVO FILTRO DE ESTADO ---
+if 'state' in df.columns:
+    estados_disponiveis = ["Brasil (Todos)"] + sorted(df['state'].unique().tolist())
+    estado_selecionado = st.selectbox("Selecione o Estado para as Matrizes:", estados_disponiveis)
+
+    # Filtragem do dataframe baseada na seleção
+    if estado_selecionado == "Brasil (Todos)":
+        df_corr = df.copy()
+    else:
+        df_corr = df[df['state'] == estado_selecionado].copy()
+else:
+    df_corr = df.copy()
+    st.warning("Coluna 'state' não encontrada para filtragem.")
+
+# Aplicar renomeação no DF filtrado
+df_corr_renomeado = df_corr.rename(columns=cols_validas)
+
+with st.expander("Ver Matrizes de Correlação", expanded=True): # Alterado para True para facilitar a visualização inicial
+    st.info(f"Exibindo correlações para: **{estado_selecionado}**")
     col_pearson, col_spearman = st.columns(2)
+    
     with col_pearson:
         st.markdown("#### 🔵 Pearson (Linear)")
-        corr_p = df_renomeado[colunas_numericas].corr(method='pearson')
+        corr_p = df_corr_renomeado[colunas_numericas].corr(method='pearson')
         fig_p, ax_p = plt.subplots(figsize=(8, 6))
         sns.heatmap(corr_p, annot=True, cmap='coolwarm', fmt=".2f", vmin=-1, vmax=1, ax=ax_p)
         st.pyplot(fig_p)
 
     with col_spearman:
         st.markdown("#### 🟢 Spearman (Rank)")
-        corr_s = df_renomeado[colunas_numericas].corr(method='spearman')
+        corr_s = df_corr_renomeado[colunas_numericas].corr(method='spearman')
         fig_s, ax_s = plt.subplots(figsize=(8, 6))
         sns.heatmap(corr_s, annot=True, cmap='viridis', fmt=".2f", vmin=-1, vmax=1, ax=ax_s)
         st.pyplot(fig_s)
@@ -73,9 +92,9 @@ with st.expander("Ver Matrizes de Correlação", expanded=False):
 st.markdown("---")
 
 # --- 3. TESTE DE HIPÓTESES ---
+# (O restante do seu código permanece igual abaixo)
 st.subheader("2. Teste de Hipóteses Automatizado")
 
-# Configuração
 with st.container(border=True):
     col_conf1, col_conf2, col_conf3 = st.columns(3)
     with col_conf1:
@@ -92,24 +111,19 @@ with st.container(border=True):
 if len(grupos_escolhidos) < 2:
     st.warning("Selecione pelo menos 2 grupos.")
 else:
-    # Filtra dados
     df_plot = df[df[grupo_key].astype(str).isin(grupos_escolhidos)].copy()
     df_plot = df_plot.sort_values(grupo_key)
-    
     dados_grupos = [df_plot[df_plot[grupo_key].astype(str) == g][col_analise_original].dropna() for g in grupos_escolhidos]
 
     if len(dados_grupos) < 2:
         st.error("Dados insuficientes.")
     else:
-        # Estatística
         if len(dados_grupos) == 2:
             tipo, stat, p_val = "Teste t (Student)", *stats.ttest_ind(dados_grupos[0], dados_grupos[1], equal_var=False)
         else:
             tipo, stat, p_val = "ANOVA", *stats.f_oneway(*dados_grupos)
 
-        # Exibição Resultados
         col_res, col_graf = st.columns([1, 2])
-        
         with col_res:
             st.markdown(f"### 📊 Resultados")
             st.info(f"**Teste:** {tipo}")
@@ -123,26 +137,9 @@ else:
 
         with col_graf:
             st.markdown(f"#### Distribuição: {var_analise} por {labels_agrupamento.get(grupo_key)}")
-            
-            # --- CRIAÇÃO DO GRÁFICO COMBINADO (HISTOGRAMA + BOXPLOT) ---
-            # Cria figura com 2 subplots (o de cima é o Histograma, o de baixo é o Boxplot)
-            # gridspec_kw={'height_ratios': (.15, .85)} define que o boxplot é menorzinho embaixo, ou meio a meio
-            fig, (ax_box, ax_hist) = plt.subplots(
-                2, 1, 
-                sharex=True, 
-                figsize=(10, 8),
-                gridspec_kw={"height_ratios": (.15, .85)} # Boxplot pequeno em cima, Histograma grande embaixo? Ou o contrário?
-                # Vamos fazer padrão: Boxplot em cima (15%), Histograma embaixo (85%) ou vice-versa.
-                # O pedido foi "em cima ou embaixo". Vou colocar Boxplot no topo e Histograma embaixo.
-            )
-            
-            # 1. Boxplot (Topo)
+            fig, (ax_box, ax_hist) = plt.subplots(2, 1, sharex=True, figsize=(10, 8), gridspec_kw={"height_ratios": (.15, .85)})
             sns.boxplot(x=col_analise_original, y=grupo_key, data=df_plot, orient='h', ax=ax_box, palette="Set2")
-            ax_box.set(xlabel='') # Remove label x do topo para não duplicar
-            ax_box.set_title("")
-            
-            # 2. Histograma / KDE (Baixo)
+            ax_box.set(xlabel='')
             sns.histplot(data=df_plot, x=col_analise_original, hue=grupo_key, kde=True, element="step", ax=ax_hist, palette="Set2")
             ax_hist.set_xlabel(var_analise)
-            
             st.pyplot(fig)
