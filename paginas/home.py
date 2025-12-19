@@ -52,7 +52,7 @@ st.markdown('<div class="main-title">🌤️ Observatório Climático Brasileiro
 st.markdown('<div class="subtitle">Análise de Dados Meteorológicos, Estatística Avançada e Inteligência Artificial (2015-2021)</div>', unsafe_allow_html=True)
 
 st.markdown("---")
-
+st.image("arquivos/capa.png", use_container_width=True)
 # --- INTRODUÇÃO ---
 col_intro, col_img = st.columns([2, 1])
 

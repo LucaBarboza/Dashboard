@@ -5,7 +5,7 @@ import plotly.express as px
 # 1. Configuração da Página
 st.set_page_config(page_title="Análise Descritiva - Clima Brasil", layout="wide")
 
-# --- CONFIGURAÇÃO PADRÃO DOS GRÁFICOS (Recuperado) ---
+# --- CONFIGURAÇÃO PADRÃO DOS GRÁFICOS ---
 config_padrao = {
     'displaylogo': False,
     'modeBarButtonsToRemove': [
@@ -55,7 +55,6 @@ for reg in unique_regions:
 cores_estados = {}
 for regiao in unique_regions:
     lista_cores = paletas_estados_matte.get(regiao, [])
-    # Ordena estados alfabeticamente para garantir consistência na atribuição de cor
     estados_da_regiao = sorted(df[df['region'] == regiao]['state'].unique())
     for estado, cor in zip(estados_da_regiao, lista_cores):
         cores_estados[estado] = cor
@@ -165,7 +164,6 @@ else:
             color_discrete_map=cores_regioes,
             category_orders={"region": ordem_regioes}
         )
-        # CONFIGURAÇÃO DE LAYOUT TRAVADO
         fig_box_reg.update_layout(
             showlegend=False, 
             xaxis=dict(fixedrange=True, title="Regiões"), 
@@ -200,7 +198,7 @@ else:
         # Filtro de Estado
         estados_disponiveis = sorted(df_base_regiao['state'].unique().astype(str))
         estados_sel = st.multiselect(
-            "3. Filtre os Estados (Opcional):", 
+            "Filtre os Estados (Opcional):", 
             estados_disponiveis, 
             default=estados_disponiveis
         )
