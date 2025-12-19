@@ -69,12 +69,9 @@ with col_intro:
     st.info("**Fonte dos Dados:** Instituto Nacional de Meteorologia (INMET). Período abrangido: 2015 a 2021.")
 
 with col_img:
-    # Espaço para uma imagem ilustrativa ou métrica de destaque
-    # Alterado para usar a classe .metric-card em vez de estilo inline fixo
     st.markdown("""
     <div class="metric-card">
-        <h1>🇧🇷</h1>
-        <p>Cobertura Nacional</p>
+        <h1>🟢🟡🔵</h1>
         <p><strong>26 Estados + DF</strong></p>
     </div>
     """, unsafe_allow_html=True)
