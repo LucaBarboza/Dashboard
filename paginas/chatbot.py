@@ -46,7 +46,7 @@ AQUI ESTÁ A DOCUMENTAÇÃO TÉCNICA DO PROJETO:
 2. PÁGINA: DASHBOARD INTERATIVO
 - Objetivo: Análise descritiva.
 - O que faz: Mostra médias, desvio padrão e extremos.
-- Gráficos: Usa Boxplots (distribuição) e Gráficos de Linha (séries temporais).
+- Gráficos: Usa Boxplots e Gráficos de Linha.
 - Detalhe técnico: Permite filtrar por Região e Estado simultaneamente.
 
 3. PÁGINA: MAPA TEMPORAL ANIMADO
