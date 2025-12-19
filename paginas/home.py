@@ -54,27 +54,17 @@ st.markdown('<div class="subtitle">Análise de Dados Meteorológicos, Estatísti
 st.markdown("---")
 st.image("arquivos/capa.png", use_container_width=True)
 # --- INTRODUÇÃO ---
-col_intro, col_img = st.columns([2, 1])
 
-with col_intro:
-    st.markdown("### 🎯 O Objetivo")
-    st.write("""
-    Este projeto é uma **plataforma analítica completa** desenvolvida para explorar a complexidade do clima brasileiro. 
-    Utilizando dados reais do **INMET**, transformamos milhões de linhas de dados brutos em conhecimento visual e preditivo.
-    
-    A ferramenta foi desenhada para atender desde curiosos sobre o clima até cientistas de dados, 
-    oferecendo desde visualizações descritivas até modelos de Machine Learning.
-    """)
-    
-    st.info("**Fonte dos Dados:** Instituto Nacional de Meteorologia (INMET). Período abrangido: 2015 a 2021.")
+st.markdown("### 🎯 O Objetivo")
+st.write("""
+Este projeto é uma **plataforma analítica completa** desenvolvida para explorar a complexidade do clima brasileiro. 
+Utilizando dados reais do **INMET**, transformamos milhões de linhas de dados brutos em conhecimento visual e preditivo.
 
-with col_img:
-    st.markdown("""
-    <div class="metric-card">
-        <h1>🟢🟡🔵</h1>
-        <p><strong>26 Estados + DF</strong></p>
-    </div>
-    """, unsafe_allow_html=True)
+A ferramenta foi desenhada para atender desde curiosos sobre o clima até cientistas de dados, 
+oferecendo desde visualizações descritivas até modelos de Machine Learning.
+""")
+
+st.info("**Fonte dos Dados:** Instituto Nacional de Meteorologia (INMET). Período abrangido: 2015 a 2021.")
 
 st.markdown("---")
 
