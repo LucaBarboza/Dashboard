@@ -3,10 +3,16 @@ import pandas as pd
 import plotly.express as px
 import requests
 
-# --- CONFIGURAÇÃO VISUAL ---
-st.set_page_config(layout="wide")
+# --- 1. CONFIGURAÇÃO INICIAL DA PÁGINA ---
+st.set_page_config(
+    page_title="Monitor Climático Brasil",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Configuração para limpar a interface do Plotly (tirar botões de zoom chatos)
 config_padrao = {
-    'scrollZoom': False,
+    'scrollZoom': False, 
     'displaylogo': False,
     'modeBarButtonsToRemove': [
         'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
@@ -15,24 +21,29 @@ config_padrao = {
     ]
 }
 
-# --- TÍTULO ---
-st.header("🌍 Mapa Animado: Evolução Climática")
-st.markdown("Navegue pelas abas abaixo para alternar entre a visão por **Estações** ou a **Linha do Tempo Completa**.")
+# --- 2. FUNÇÕES DE CARREGAMENTO (CACHED) ---
 
-# --- 1. CARREGAMENTO DE DADOS E GEOJSON ---
 @st.cache_data(ttl=3600)
 def carregar_dados_mapa():
+    """Carrega, limpa e prepara os dados climáticos."""
     try:
+        # Tenta ler de subpasta ou raiz
         try:
             df = pd.read_csv("dataframe/clima_brasil_semanal_refinado_2015.csv")
-        except:
+        except FileNotFoundError:
             df = pd.read_csv("clima_brasil_semanal_refinado_2015.csv")
             
+        # Converter coluna de data
         if 'semana_ref' in df.columns:
             df['semana_ref'] = pd.to_datetime(df['semana_ref'])
             df['ano'] = df['semana_ref'].dt.year
             df['mes'] = df['semana_ref'].dt.month
             
+            # CRUCIAL: Coluna de ordenação para a Timeline (YYYY-MM)
+            # Isso garante que a animação flua corretamente: 2015-01 -> 2015-02...
+            df['ano_mes'] = df['semana_ref'].dt.strftime('%Y-%m')
+            
+            # Define Estações
             def get_estacao(m):
                 if m in [12, 1, 2]: return "Verão"
                 elif m in [3, 4, 5]: return "Outono"
@@ -40,34 +51,33 @@ def carregar_dados_mapa():
                 else: return "Primavera"
             df['estacao'] = df['mes'].apply(get_estacao)
             
-            # Mapeamento com número para garantir ordenação visual correta (01-Jan, 02-Fev...)
-            mapa_meses = {1:'01-Jan', 2:'02-Fev', 3:'03-Mar', 4:'04-Abr', 5:'05-Mai', 6:'06-Jun',
-                          7:'07-Jul', 8:'08-Ago', 9:'09-Set', 10:'10-Out', 11:'11-Nov', 12:'12-Dez'}
-            df['nome_mes'] = df['mes'].map(mapa_meses)
-            
         return df
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+        st.error(f"Erro ao carregar dados CSV: {e}")
         st.stop()
 
 @st.cache_data(ttl=3600)
 def carregar_geojson():
+    """Baixa o mapa do Brasil (limites estaduais)."""
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
     try:
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
             return response.json()
     except Exception as e:
-        st.error(f"Erro ao baixar mapa (GeoJSON): {e}")
+        st.error(f"Erro ao baixar mapa GeoJSON: {e}")
     return None
 
+# Carrega os dados
 df = carregar_dados_mapa()
 geojson = carregar_geojson()
 
 if geojson is None:
     st.stop()
 
-# --- 2. CÁLCULO DE ESCALAS GLOBAIS (TRAVAMENTO) ---
+# --- 3. CÁLCULO DE ESCALAS GLOBAIS (TRAVAMENTO) ---
+# Calcula o min e max ABSOLUTOS de todo o histórico.
+# Isso garante que as cores sejam comparáveis entre as abas.
 global_ranges = {
     "temperatura_media": [df['temperatura_media'].min(), df['temperatura_media'].max()],
     "chuva_media_semanal": [df['chuva_media_semanal'].min(), df['chuva_media_semanal'].max()],
@@ -76,8 +86,8 @@ global_ranges = {
     "radiacao_media": [df['radiacao_media'].min(), df['radiacao_media'].max()]
 }
 
-# --- 3. SIDEBAR ---
-st.sidebar.header("Configurações")
+# --- 4. BARRA LATERAL (CONTROLES) ---
+st.sidebar.header("⚙️ Configurações")
 
 variaveis = {
     "Temperatura (°C)": "temperatura_media",
@@ -86,91 +96,116 @@ variaveis = {
     "Vento (m/s)": "vento_medio",
     "Radiação": "radiacao_media"
 }
-var_label = st.sidebar.selectbox("O que você quer visualizar?", list(variaveis.keys()))
+
+var_label = st.sidebar.selectbox("Variável Visualizada:", list(variaveis.keys()))
 var_col = variaveis[var_label]
 
+# Definição Inteligente da Paleta de Cores
 if "chuva" in var_col:
     escala = "Blues"
 elif "temperatura" in var_col:
-    escala = "RdYlBu_r" 
+    escala = "RdYlBu_r" # Invertido: Azul (Frio) -> Vermelho (Quente)
 elif "umidade" in var_col:
     escala = "YlGnBu"
 else:
     escala = "Viridis"
 
-# --- 4. ABAS ---
-tab1, tab2 = st.tabs(["🍂 Por Estação (Anos)", "📅 Linha do Tempo (Meses)"])
+# --- 5. INTERFACE PRINCIPAL (ABAS) ---
+st.title("🌍 Evolução Climática do Brasil")
 
-# === ABA 1: VISÃO SAZONAL (Mantida igual) ===
+# Criação das duas abas
+tab1, tab2 = st.tabs(["🍂 Comparação Sazonal (Ano a Ano)", "⏳ Linha do Tempo (Jan/15 - Abr/21)"])
+
+# ==========================================
+# ABA 1: VISÃO SAZONAL
+# ==========================================
 with tab1:
-    st.markdown(f"**Análise Sazonal:** Veja como {var_label} mudou ao longo dos **Anos** para uma estação específica.")
-    estacao_selecionada = st.radio("Escolha a Estação:", ["Verão", "Outono", "Inverno", "Primavera"], horizontal=True)
+    st.markdown("Compare como uma **Estação Específica** mudou ao longo dos anos.")
     
-    df_filtrado = df[df['estacao'] == estacao_selecionada].copy()
-    df_animacao = df_filtrado.groupby(['ano', 'state'])[var_col].mean().reset_index()
-    df_animacao = df_animacao.sort_values(['ano', 'state'])
+    col_sel, _ = st.columns([1, 3])
+    with col_sel:
+        estacao_selecionada = st.radio(
+            "Selecione a Estação:",
+            ["Verão", "Outono", "Inverno", "Primavera"],
+            horizontal=True
+        )
+    
+    # Filtra e Agrupa
+    df_sazonal = df[df['estacao'] == estacao_selecionada].copy()
+    df_anim_sazonal = df_sazonal.groupby(['ano', 'state'])[var_col].mean().reset_index()
+    df_anim_sazonal = df_anim_sazonal.sort_values(['ano', 'state'])
 
+    # Mapa 1
     fig1 = px.choropleth_mapbox(
-        df_animacao,
+        df_anim_sazonal,
         geojson=geojson,
         locations='state',
         featureidkey="properties.sigla",
         color=var_col,
         animation_frame="ano",
         color_continuous_scale=escala,
-        range_color=global_ranges[var_col],
+        range_color=global_ranges[var_col], # <--- Escala Travada
         mapbox_style="carto-positron",
         zoom=3.0,
         center={"lat": -15.0, "lon": -54.0},
         opacity=0.9,
-        height=600
+        height=600,
+        title=f"Evolução: {var_label} no {estacao_selecionada}"
     )
-    fig1.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, dragmode=False, coloraxis_colorbar=dict(title=var_label))
-    try: fig1.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1000
+    
+    # Layout Limpo
+    fig1.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, dragmode=False)
+    # Velocidade Lenta (1 seg) para comparação anual
+    try:
+        fig1.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1000
     except: pass
+    
     st.plotly_chart(fig1, use_container_width=True, config=config_padrao)
 
-# === ABA 2: VISÃO MENSAL CONTÍNUA (Alterada) ===
-with tab2:
-    st.markdown(f"**Análise Contínua:** Evolução de Jan/2015 até o final do período.")
-    
-    # 1. Copia o dataframe completo
-    df_timeline = df.copy()
-    
-    # 2. Cria uma coluna rotulo combinando Ano e Mês para a animação (Ex: "2015 - 01-Jan")
-    df_timeline['timeline_label'] = df_timeline['ano'].astype(str) + " - " + df_timeline['nome_mes']
-    
-    # 3. Agrupa por Ano, Mes, Label e Estado
-    df_anim_timeline = df_timeline.groupby(['ano', 'mes', 'timeline_label', 'state'])[var_col].mean().reset_index()
-    
-    # 4. ORDENAÇÃO CRÍTICA: Ordena por Ano e depois Mês para a animação seguir a cronologia correta
-    df_anim_timeline = df_anim_timeline.sort_values(['ano', 'mes', 'state'])
 
-    # 5. Gera o gráfico usando 'timeline_label' como frame de animação
+# ==========================================
+# ABA 2: LINHA DO TEMPO COMPLETA (OTIMIZADA)
+# ==========================================
+with tab2:
+    st.markdown("Visualize a transição contínua mês a mês de todo o período.")
+    
+    # OTIMIZAÇÃO: Agrupar por Mês ('ano_mes') antes de plotar.
+    # Se usássemos dados semanais, seriam ~300 frames (pesado). 
+    # Agrupando por mês, são ~75 frames (leve).
+    df_timeline = df.groupby(['ano_mes', 'state'])[var_col].mean().reset_index()
+    
+    # Ordenação obrigatória para a animação não "pular"
+    df_timeline = df_timeline.sort_values(['ano_mes', 'state'])
+
+    # Mapa 2
     fig2 = px.choropleth_mapbox(
-        df_anim_timeline,
+        df_timeline,
         geojson=geojson,
         locations='state',
         featureidkey="properties.sigla",
         color=var_col,
-        animation_frame="timeline_label", # <--- AQUI ESTÁ A MUDANÇA
+        animation_frame="ano_mes", # Anima pela string 'YYYY-MM'
         color_continuous_scale=escala,
-        range_color=global_ranges[var_col], # Mantém a escala travada globalmente
+        range_color=global_ranges[var_col], # <--- Mesma Escala Travada
         mapbox_style="carto-positron",
         zoom=3.0,
         center={"lat": -15.0, "lon": -54.0},
         opacity=0.9,
-        height=600
+        height=600,
+        title=f"Linha do Tempo: {var_label} (Mensal)"
     )
 
-    fig2.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, dragmode=False, coloraxis_colorbar=dict(title=var_label))
+    fig2.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, dragmode=False)
     
-    # Velocidade mais rápida pois são muitos frames (meses)
-    try: fig2.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 300
+    # Velocidade Rápida (0.1 seg) para fluidez na timeline longa
+    try:
+        fig2.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 100
+        fig2.layout.updatemenus[0].buttons[0].args[1]["transition"]["duration"] = 50
     except: pass
 
     st.plotly_chart(fig2, use_container_width=True, config=config_padrao)
 
+# --- 6. RODAPÉ (DADOS) ---
 st.divider()
-with st.expander("🔎 Ver Tabela de Dados Brutos"):
-    st.dataframe(df.head(500), use_container_width=True)
+with st.expander("🔎 Ver Tabela de Dados (Amostra)"):
+    st.dataframe(df.head(100), use_container_width=True)
