@@ -1,13 +1,45 @@
 import streamlit as st
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from scipy import stats
+
+@st.cache_data
+def carregar_dados():
+    try:
+        return pd.read_csv("dataframe/clima_brasil_semanal_refinado_2015.csv")
+    except:
+        return pd.read_csv("clima_brasil_semanal_refinado_2015.csv")
+
+df = carregar_dados()
+
+# Mapeamentos necessários para a página
+cols_map = {
+    'radiacao_media': 'Radiação',
+    'vento_medio': 'Vento',
+    'vento_medio_kmh': 'Vento (km/h)',
+    'pressao_media': 'Pressão',
+    'chuva_media_semanal': 'Chuva',
+    'temperatura_media': 'Temperatura',
+    'umidade_media': 'Umidade'
+}
+cols_validas = {k: v for k, v in cols_map.items() if k in df.columns}
+colunas_numericas = list(cols_validas.values())
+
+# --- CONFIGURAÇÃO PADRÃO (Mesma das matrizes) ---
+config_padrao = {
+    'displayModeBar': True,
+    'displaylogo': False,
+    'scrollZoom': False,
+    'modeBarButtonsToRemove': [
+        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 
+        'zoomOut2d', 'autoScale2d', 'resetScale2d'
+    ]
+}
 
 # --- 3. TESTE DE HIPÓTESES ---
 st.subheader("2. Teste de Hipóteses Automatizado")
 
-# Configuração
 with st.container(border=True):
     col_conf1, col_conf2, col_conf3 = st.columns(3)
     with col_conf1:
@@ -22,16 +54,13 @@ with st.container(border=True):
         grupos_escolhidos = st.multiselect("3️⃣ Grupos (Min 2):", vals, default=vals[:2])
 
 if len(grupos_escolhidos) < 2:
-    st.warning("Selecione pelo menos 2 grupos.")
+    st.warning("Selecione pelo menos 2 grupos para realizar o teste.")
 else:
-    # Filtra dados
     df_plot = df[df[grupo_key].astype(str).isin(grupos_escolhidos)].copy()
-    df_plot = df_plot.sort_values(grupo_key)
-    
     dados_grupos = [df_plot[df_plot[grupo_key].astype(str) == g][col_analise_original].dropna() for g in grupos_escolhidos]
 
-    if len(dados_grupos) < 2:
-        st.error("Dados insuficientes.")
+    if len(dados_grupos) < 2 or any(len(g) < 3 for g in dados_grupos):
+        st.error("Dados insuficientes nos grupos selecionados para análise estatística.")
     else:
         # Estatística
         if len(dados_grupos) == 2:
@@ -39,7 +68,6 @@ else:
         else:
             tipo, stat, p_val = "ANOVA", *stats.f_oneway(*dados_grupos)
 
-        # Exibição Resultados
         col_res, col_graf = st.columns([1, 2])
         
         with col_res:
@@ -48,33 +76,33 @@ else:
             st.metric("P-Valor", f"{p_val:.4e}")
             if p_val < 0.05:
                 st.success("✅ **Diferença Significativa!**")
-                st.caption("As médias dos grupos são estatisticamente diferentes.")
+                st.caption("As médias dos grupos são estatisticamente diferentes (Rejeita H0).")
             else:
                 st.error("❌ **Sem Diferença Significativa**")
-                st.caption("Não há evidências de diferença real entre os grupos.")
+                st.caption("Não há evidências de diferença real entre os grupos (Aceita H0).")
 
         with col_graf:
-            st.markdown(f"#### Distribuição: {var_analise} por {labels_agrupamento.get(grupo_key)}")
-            
-            # --- CRIAÇÃO DO GRÁFICO COMBINADO (HISTOGRAMA + BOXPLOT) ---
-            # Cria figura com 2 subplots (o de cima é o Histograma, o de baixo é o Boxplot)
-            # gridspec_kw={'height_ratios': (.15, .85)} define que o boxplot é menorzinho embaixo, ou meio a meio
-            fig, (ax_box, ax_hist) = plt.subplots(
-                2, 1, 
-                sharex=True, 
-                figsize=(10, 8),
-                gridspec_kw={"height_ratios": (.15, .85)} # Boxplot pequeno em cima, Histograma grande embaixo? Ou o contrário?
-                # Vamos fazer padrão: Boxplot em cima (15%), Histograma embaixo (85%) ou vice-versa.
-                # O pedido foi "em cima ou embaixo". Vou colocar Boxplot no topo e Histograma embaixo.
+            # --- GRÁFICO COMBINADO COM PLOTLY (Boxplot + Histograma) ---
+            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                               vertical_spacing=0.05, row_heights=[0.2, 0.8])
+
+            cores = ['#2E8B57', '#4682B4', '#CD5C5C', '#F4A460', '#9370DB']
+
+            for i, grupo in enumerate(grupos_escolhidos):
+                cor = cores[i % len(cores)]
+                fig.add_trace(go.Box(x=dados_grupos[i], name=grupo, marker_color=cor, 
+                                     showlegend=False, orientation='h'), row=1, col=1)
+                fig.add_trace(go.Histogram(x=dados_grupos[i], name=grupo, marker_color=cor, 
+                                           opacity=0.6, histnorm='probability density'), row=2, col=1)
+
+            fig.update_layout(
+                height=500,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                barmode='overlay',
+                margin=dict(l=20, r=20, t=30, b=20),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
+            fig.update_xaxes(title_text=var_analise, row=2, col=1)
             
-            # 1. Boxplot (Topo)
-            sns.boxplot(x=col_analise_original, y=grupo_key, data=df_plot, orient='h', ax=ax_box, palette="Set2")
-            ax_box.set(xlabel='') # Remove label x do topo para não duplicar
-            ax_box.set_title("")
-            
-            # 2. Histograma / KDE (Baixo)
-            sns.histplot(data=df_plot, x=col_analise_original, hue=grupo_key, kde=True, element="step", ax=ax_hist, palette="Set2")
-            ax_hist.set_xlabel(var_analise)
-            
-            st.pyplot(fig)
+            st.plotly_chart(fig,
