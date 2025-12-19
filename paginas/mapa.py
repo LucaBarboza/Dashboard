@@ -114,7 +114,7 @@ else:
 st.title("🌍 Evolução Climática do Brasil")
 
 # Criação das duas abas
-tab1, tab2 = st.tabs(["🍂 Comparação Sazonal (Ano a Ano)", "⏳ Linha do Tempo (Jan/15 - Abr/21)"])
+tab1, tab2 = st.tabs(["🍂 Comparação por Estações (Ano a Ano)", "⏳ Linha do Tempo das Estações"])
 
 # ==========================================
 # ABA 1: VISÃO SAZONAL
