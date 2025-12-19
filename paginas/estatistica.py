@@ -52,20 +52,6 @@ colunas_numericas = list(cols_validas.values())
 
 st.markdown("---")
 
-Para um visual profissional e sofisticado, as paletas divergentes suaves são as melhores. Elas mantêm a neutralidade no centro (correlação zero) e destacam as extremidades sem usar tons neon ou agressivos.
-
-Vou sugerir duas paletas famosas no design de dados:
-
-Pearson: Paleta Picnic (Tons de azul e vermelho lavados, mais sóbrios).
-
-Spearman: Paleta Tealrose (Tons de verde-azulado e rosa seco, muito elegantes e modernos).
-
-Além disso, ajustei o height e o aspect para garantir que a matriz fique com uma proporção harmônica.
-
-Python
-
-import plotly.express as px
-
 # --- 2. ANÁLISE DE CORRELAÇÃO ---
 st.subheader("1. Matrizes de Correlação (Pearson vs Spearman)")
 
@@ -88,10 +74,9 @@ with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
     
     col_pearson, col_spearman = st.columns(2)
     
-    # Função personalizada para layout limpo e proporcional
     def configurar_layout_mapa(fig):
         fig.update_layout(
-            height=550,  # Altura aumentada para evitar achatamento
+            height=550,
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=20, r=20, t=50, b=20),
@@ -103,7 +88,6 @@ with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
     with col_pearson:
         st.markdown("#### 🔵 Pearson (Linear)")
         corr_p = df_corr_renomeado[colunas_numericas].corr(method='pearson')
-        # Paleta 'Picnic': Tons suaves de azul, branco e vermelho
         fig_p = px.imshow(
             corr_p,
             text_auto=".2f",
@@ -116,7 +100,6 @@ with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
     with col_spearman:
         st.markdown("#### 🟢 Spearman (Rank)")
         corr_s = df_corr_renomeado[colunas_numericas].corr(method='spearman')
-        # Paleta 'Tealrose': Tons suaves de verde água e rosa antigo
         fig_s = px.imshow(
             corr_s,
             text_auto=".2f",
