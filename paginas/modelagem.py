@@ -11,7 +11,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
-st.header("🤖 Inteligência Artificial e Modelagem")
+st.header("🧠 Inteligência Artificial e Modelagem")
 st.markdown("Uma suíte completa de algoritmos para entender o passado, detectar padrões ocultos e prever o futuro.")
 
 # --- 1. CARREGAMENTO DE DADOS ---
