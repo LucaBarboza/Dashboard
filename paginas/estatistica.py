@@ -6,16 +6,6 @@ import plotly.express as px
 from scipy import stats
 
 st.set_page_config(layout="wide")
-
-# --- CONFIGURAÇÃO PADRÃO DOS GRÁFICOS (Recuperado) ---
-config_padrao = {
-    'displaylogo': False,
-    'modeBarButtonsToRemove': [
-        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
-        'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
-    ]
-}
-
 st.header("📊 Laboratório de Análise Estatística")
 st.markdown("Aqui você pode explorar correlações e testar hipóteses comparando diferentes grupos automaticamente.")
 
@@ -78,6 +68,14 @@ else:
 
 df_corr_renomeado = df_corr.rename(columns=cols_validas)
 
+config_padrao = {
+    'displaylogo': False,
+    'modeBarButtonsToRemove': [
+        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+        'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
+    ]
+}
+
 with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
     st.info(f"Exibindo correlações para: **{estado_selecionado}**")
     
@@ -85,7 +83,7 @@ with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
     
     def configurar_layout_limpo(fig):
         fig.update_layout(
-            height=550,
+            height=550, 
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=20, r=20, t=50, b=20),
@@ -94,7 +92,7 @@ with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
         return fig
 
     with col_pearson:
-        st.markdown("#### 🔵 Pearson (Linear) - Azul e Vermelho")
+        st.markdown("#### 🔵 Pearson (Linear)")
         corr_p = df_corr_renomeado[colunas_numericas].corr(method='pearson')
         fig_p = px.imshow(
             corr_p,
@@ -103,10 +101,10 @@ with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
             color_continuous_scale="RdBu_r", 
             zmin=-1, zmax=1
         )
-        st.plotly_chart(configurar_layout_limpo(fig_p), use_container_width=True)
+        st.plotly_chart(configurar_layout_limpo(fig_p), use_container_width=True, config=config_padrao)
 
     with col_spearman:
-        st.markdown("#### 🟢 Spearman (Rank) - Verde e Vermelho")
+        st.markdown("#### 🟢 Spearman (Rank)")
         corr_s = df_corr_renomeado[colunas_numericas].corr(method='spearman')
         fig_s = px.imshow(
             corr_s,
@@ -115,7 +113,7 @@ with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
             color_continuous_scale="RdYlGn", 
             zmin=-1, zmax=1
         )
-        st.plotly_chart(configurar_layout_limpo(fig_s), use_container_width=True)
+        st.plotly_chart(configurar_layout_limpo(fig_s), use_container_width=True, config=config_padrao)
 
 # --- 3. TESTE DE HIPÓTESES ---
 # (O restante do seu código permanece igual abaixo)
