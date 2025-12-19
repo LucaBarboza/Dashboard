@@ -36,10 +36,7 @@ colunas_numericas = list(cols_validas.values())
 
 st.markdown("---")
 
-# --- 2. ANÁLISE DE CORRELAÇÃO ---
-st.subheader("1. Matrizes de Correlação (Pearson vs Spearman)")
-
-# Filtro de Estado
+# --- 2. FILTRO E PROCESSAMENTO ---
 if 'state' in df.columns:
     estados_disponiveis = ["Brasil (Todos)"] + sorted(df['state'].unique().tolist())
     estado_selecionado = st.selectbox("Selecione o Estado para as Matrizes:", estados_disponiveis)
@@ -54,8 +51,7 @@ else:
 
 df_corr_renomeado = df_corr.rename(columns=cols_validas)
 
-# --- CONFIGURAÇÃO: FOCO NO DADO + TELA CHEIA ---
-# Remove botões de edição, mas mantém o de tela cheia do Plotly
+# --- 3. CONFIGURAÇÃO DOS GRÁFICOS (HOVER + TELA CHEIA) ---
 config_custom = {
     'displayModeBar': True,
     'displaylogo': False,
@@ -67,44 +63,44 @@ config_custom = {
     ]
 }
 
-with st.expander("Ver Matrizes de Correlação", expanded=True):
-    st.info(f"Exibindo correlações para: **{estado_selecionado}**")
-    
-    col_pearson, col_spearman = st.columns(2)
-    
-    def aplicar_estilo_matriz(fig):
-        fig.update_layout(
-            height=600, 
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=20, r=20, t=50, b=20),
-            coloraxis_colorbar=dict(title="Grau"),
-            dragmode=False
-        )
-        return fig
+def aplicar_estilo_matriz(fig):
+    fig.update_layout(
+        height=600, 
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=20, r=20, t=50, b=20),
+        coloraxis_colorbar=dict(title="Grau"),
+        dragmode=False 
+    )
+    return fig
 
-    with col_pearson:
-        st.markdown("#### 🔵 Pearson (Relação Linear)")
-        corr_p = df_corr_renomeado[colunas_numericas].corr(method='pearson')
-        fig_p = px.imshow(
-            corr_p,
-            text_auto=".2f",
-            aspect="equal", 
-            color_continuous_scale="RdBu_r", 
-            zmin=-1, zmax=1
-        )
-        st.plotly_chart(aplicar_estilo_matriz(fig_p), use_container_width=True, config=config_custom)
+# --- 4. EXIBIÇÃO DAS MATRIZES ---
+st.info(f"Exibindo correlações para: **{estado_selecionado}**")
 
-    with col_spearman:
-        st.markdown("#### 🟢 Spearman (Relação de Posto)")
-        corr_s = df_corr_renomeado[colunas_numericas].corr(method='spearman')
-        fig_s = px.imshow(
-            corr_s,
-            text_auto=".2f",
-            aspect="equal", 
-            color_continuous_scale="RdYlGn", 
-            zmin=-1, zmax=1
-        )
-        st.plotly_chart(aplicar_estilo_matriz(fig_s), use_container_width=True, config=config_custom)
+col_pearson, col_spearman = st.columns(2)
+
+with col_pearson:
+    st.markdown("#### 🔵 Pearson (Relação Linear)")
+    corr_p = df_corr_renomeado[colunas_numericas].corr(method='pearson')
+    fig_p = px.imshow(
+        corr_p,
+        text_auto=".2f",
+        aspect="equal", 
+        color_continuous_scale="RdBu_r", 
+        zmin=-1, zmax=1
+    )
+    st.plotly_chart(aplicar_estilo_matriz(fig_p), use_container_width=True, config=config_custom)
+
+with col_spearman:
+    st.markdown("#### 🟢 Spearman (Relação de Posto)")
+    corr_s = df_corr_renomeado[colunas_numericas].corr(method='spearman')
+    fig_s = px.imshow(
+        corr_s,
+        text_auto=".2f",
+        aspect="equal", 
+        color_continuous_scale="RdYlGn", 
+        zmin=-1, zmax=1
+    )
+    st.plotly_chart(aplicar_estilo_matriz(fig_s), use_container_width=True, config=config_custom)
 
 st.markdown("---")
