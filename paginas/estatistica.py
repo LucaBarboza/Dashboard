@@ -52,6 +52,20 @@ colunas_numericas = list(cols_validas.values())
 
 st.markdown("---")
 
+Para um visual profissional e sofisticado, as paletas divergentes suaves são as melhores. Elas mantêm a neutralidade no centro (correlação zero) e destacam as extremidades sem usar tons neon ou agressivos.
+
+Vou sugerir duas paletas famosas no design de dados:
+
+Pearson: Paleta Picnic (Tons de azul e vermelho lavados, mais sóbrios).
+
+Spearman: Paleta Tealrose (Tons de verde-azulado e rosa seco, muito elegantes e modernos).
+
+Além disso, ajustei o height e o aspect para garantir que a matriz fique com uma proporção harmônica.
+
+Python
+
+import plotly.express as px
+
 # --- 2. ANÁLISE DE CORRELAÇÃO ---
 st.subheader("1. Matrizes de Correlação (Pearson vs Spearman)")
 
@@ -74,46 +88,43 @@ with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
     
     col_pearson, col_spearman = st.columns(2)
     
-    # Função interna para padronizar o visual neutro
-    def criar_heatmap_clean(df_corr_matrix, titulo):
-        fig = px.imshow(
-            df_corr_matrix,
-            text_auto=".2f",
-            # "aspect='equal'" evita que a matriz fique achatada, mantendo células quadradas
-            aspect="equal", 
-            # Escala 'IceFire' ou 'RdBu_r' com cores mais sóbrias, ou 'Greys' para neutralidade total
-            color_continuous_scale="Tropic", 
-            zmin=-1, zmax=1,
-            title=titulo
-        )
-        
+    # Função personalizada para layout limpo e proporcional
+    def configurar_layout_mapa(fig):
         fig.update_layout(
-            height=500, # Aumenta a altura para não ficar achatado
-            paper_bgcolor='rgba(0,0,0,0)', 
+            height=550,  # Altura aumentada para evitar achatamento
+            paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
-            # Estilização da fonte e eixos para algo mais limpo
-            font=dict(color="white" if st.get_option("theme.base") == "dark" else "black"),
-            coloraxis_showscale=True,
-            margin=dict(l=10, r=10, t=50, b=10)
+            margin=dict(l=20, r=20, t=50, b=20),
         )
-        
-        # Remove as linhas de grade que podem poluir o visual
-        fig.update_xaxes(side="bottom", showgrid=False)
-        fig.update_yaxes(showgrid=False)
-        
+        fig.update_xaxes(showgrid=False, zeroline=False)
+        fig.update_yaxes(showgrid=False, zeroline=False)
         return fig
 
     with col_pearson:
         st.markdown("#### 🔵 Pearson (Linear)")
         corr_p = df_corr_renomeado[colunas_numericas].corr(method='pearson')
-        fig_p = criar_heatmap_clean(corr_p, "Correlação Linear")
-        st.plotly_chart(fig_p, use_container_width=True)
+        # Paleta 'Picnic': Tons suaves de azul, branco e vermelho
+        fig_p = px.imshow(
+            corr_p,
+            text_auto=".2f",
+            aspect="equal", 
+            color_continuous_scale="Picnic", 
+            zmin=-1, zmax=1
+        )
+        st.plotly_chart(configurar_layout_mapa(fig_p), use_container_width=True)
 
     with col_spearman:
-        st.markdown("#### 🟢 Spearman (Posto)")
+        st.markdown("#### 🟢 Spearman (Rank)")
         corr_s = df_corr_renomeado[colunas_numericas].corr(method='spearman')
-        fig_s = criar_heatmap_clean(corr_s, "Correlação Não-Linear")
-        st.plotly_chart(fig_s, use_container_width=True)
+        # Paleta 'Tealrose': Tons suaves de verde água e rosa antigo
+        fig_s = px.imshow(
+            corr_s,
+            text_auto=".2f",
+            aspect="equal", 
+            color_continuous_scale="Tealrose", 
+            zmin=-1, zmax=1
+        )
+        st.plotly_chart(configurar_layout_mapa(fig_s), use_container_width=True)
 
 # --- 3. TESTE DE HIPÓTESES ---
 # (O restante do seu código permanece igual abaixo)
