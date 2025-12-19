@@ -1,239 +1,359 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 import requests
+from sklearn.linear_model import LinearRegression
+from sklearn.cluster import KMeans
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
-# --- CONFIGURAÇÃO VISUAL ---
-st.set_page_config(layout="wide") # Opcional: aumenta o espaço lateral
+# 1. Configuração da Página
+st.set_page_config(page_title="IA & Modelagem Climática", layout="wide")
+
+# --- CONFIGURAÇÃO PADRÃO DOS GRÁFICOS ---
 config_padrao = {
-    'scrollZoom': False,
     'displaylogo': False,
     'modeBarButtonsToRemove': [
         'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
-        'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d',
-        'toImage', 'toggleHover'
+        'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
     ]
 }
 
-# --- TÍTULO ---
-st.header("🌍 Mapa Animado: Evolução Climática")
-st.markdown("Navegue pelas abas abaixo para alternar entre a visão por **Estações** ou **Mensal**.")
+st.header("🧠 Inteligência Artificial e Modelagem")
+st.markdown("Uma suíte completa de algoritmos para entender o passado, detectar padrões ocultos e prever o futuro.")
 
-# --- 1. CARREGAMENTO DE DADOS E GEOJSON ---
-@st.cache_data(ttl=3600)
-def carregar_dados_mapa():
+# --- 1. CARREGAMENTO DE DADOS ---
+@st.cache_data
+def carregar_dados_ml():
     try:
-        # Tenta carregar do caminho padrão ou raiz
-        try:
-            df = pd.read_csv("dataframe/clima_brasil_semanal_refinado_2015.csv")
-        except:
-            df = pd.read_csv("clima_brasil_semanal_refinado_2015.csv")
-            
-        # Tratamento de Datas
-        if 'semana_ref' in df.columns:
-            df['semana_ref'] = pd.to_datetime(df['semana_ref'])
-            df['ano'] = df['semana_ref'].dt.year
-            df['mes'] = df['semana_ref'].dt.month
-            
-            # Função para Estação
-            def get_estacao(m):
-                if m in [12, 1, 2]: return "Verão"
-                elif m in [3, 4, 5]: return "Outono"
-                elif m in [6, 7, 8]: return "Inverno"
-                else: return "Primavera"
-            df['estacao'] = df['mes'].apply(get_estacao)
-            
-            # Mapeamento para nome do mês (para a animação mensal ficar bonita)
-            mapa_meses = {1:'01-Jan', 2:'02-Fev', 3:'03-Mar', 4:'04-Abr', 5:'05-Mai', 6:'06-Jun',
-                          7:'07-Jul', 8:'08-Ago', 9:'09-Set', 10:'10-Out', 11:'11-Nov', 12:'12-Dez'}
-            df['nome_mes'] = df['mes'].map(mapa_meses)
-            
-        return df
-    except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
-        st.stop()
+        df = pd.read_csv("dataframe/clima_brasil_semanal_refinado_2015.csv")
+    except:
+        df = pd.read_csv("clima_brasil_semanal_refinado_2015.csv")
+        
+    if 'semana_ref' in df.columns:
+        df['semana_ref'] = pd.to_datetime(df['semana_ref'])
+        df['ano'] = df['semana_ref'].dt.year
+        df['mes'] = df['semana_ref'].dt.month
+        # Cria uma coluna numérica para o tempo (necessário para regressão temporal)
+        df['tempo_ordinal'] = df['semana_ref'].apply(lambda x: x.toordinal())
+    
+    # Remove linhas com NaNs para não quebrar os modelos
+    cols_numericas_raw = ['chuva_media_semanal', 'temperatura_media', 'umidade_media', 
+                       'vento_medio', 'pressao_media', 'radiacao_media']
+    
+    # --- NOMES DAS VARIÁVEIS ---
+    mapa = {
+        'chuva_media_semanal': 'Chuva Média (mm)',
+        'temperatura_media': 'Temperatura Média (C)',
+        'umidade_media': 'Umidade Média (%)',
+        'vento_medio': 'Vento Médio (Km/h)',
+        'pressao_media': 'Pressão Média (inHg)',
+        'radiacao_media': 'Radiação Média (Kj/m²)'
+    }
+    
+    df = df.dropna(subset=cols_numericas_raw)
+    return df, mapa
 
-@st.cache_data(ttl=3600)
-def carregar_geojson():
+# Carrega GeoJSON para o mapa de clusters
+@st.cache_data
+def carregar_geojson_ml():
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=5)
         if response.status_code == 200:
             return response.json()
-    except Exception as e:
-        st.error(f"Erro ao baixar mapa (GeoJSON): {e}")
-    return None
+    except:
+        return None
 
-df = carregar_dados_mapa()
-geojson = carregar_geojson()
+df, mapa_nomes = carregar_dados_ml()
+geojson = carregar_geojson_ml()
 
-if geojson is None:
-    st.stop()
+# --- DEFINIÇÃO DAS ABAS ---
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📉 Regressão (Causa & Efeito)", 
+    "🔍 Clustering (Padrões)", 
+    "🚨 Anomalias (Extremos)", 
+    "🔮 Previsão (Futuro)"
+])
 
-# --- 2. CÁLCULO DE ESCALAS GLOBAIS (TRAVAMENTO) ---
-# Aqui definimos o min e max de TODO o histórico para cada variável.
-# Isso garante que a cor vermelha signifique a mesma coisa em todas as abas.
-global_ranges = {
-    "temperatura_media": [df['temperatura_media'].min(), df['temperatura_media'].max()],
-    "chuva_media_semanal": [df['chuva_media_semanal'].min(), df['chuva_media_semanal'].max()],
-    "umidade_media": [df['umidade_media'].min(), df['umidade_media'].max()],
-    "vento_medio": [df['vento_medio'].min(), df['vento_medio'].max()],
-    "radiacao_media": [df['radiacao_media'].min(), df['radiacao_media'].max()]
-}
-
-# --- 3. CONTROLES GERAIS (SIDEBAR) ---
-st.sidebar.header("Configurações")
-
-variaveis = {
-    "Temperatura (°C)": "temperatura_media",
-    "Chuva (mm)": "chuva_media_semanal",
-    "Umidade (%)": "umidade_media",
-    "Vento (m/s)": "vento_medio",
-    "Radiação": "radiacao_media"
-}
-var_label = st.sidebar.selectbox("O que você quer visualizar?", list(variaveis.keys()))
-var_col = variaveis[var_label]
-
-# Definição da Paleta de Cores (Baseada na variável escolhida)
-if "chuva" in var_col:
-    escala = "Blues"
-elif "temperatura" in var_col:
-    escala = "RdYlBu_r" 
-elif "umidade" in var_col:
-    escala = "YlGnBu"
-else:
-    escala = "Viridis"
-
-# --- 4. CRIAÇÃO DAS ABAS ---
-tab1, tab2 = st.tabs(["🍂 Estações por Ano", "📅 Linha do Tempo Estação por Estação"])
-
-# ==========================================
-# ABA 1: VISÃO SAZONAL
-# ==========================================
+# ==============================================================================
+# TAB 1: REGRESSÃO LINEAR MÚLTIPLA (Supervisionado)
+# ==============================================================================
 with tab1:
-    st.markdown(f"**Análise Sazonal:** Veja como {var_label} mudou ao longo dos **Anos** para uma estação específica.")
+    st.subheader("Quem influencia quem?")
+    st.info("Descubra como variáveis explicativas (X) impactam uma variável alvo (Y).")
     
-    col_filtro1, col_filtro2 = st.columns([1, 3])
-    with col_filtro1:
-        estacao_selecionada = st.radio(
-            "Escolha a Estação:",
-            ["Verão", "Outono", "Inverno", "Primavera"],
-            horizontal=False
+    col1, col2 = st.columns(2)
+    with col1:
+        target = st.selectbox("🎯 Variável Alvo (Y):", list(mapa_nomes.keys()), format_func=lambda x: mapa_nomes[x], index=1)
+    with col2:
+        features_possiveis = [c for c in mapa_nomes.keys() if c != target]
+        features = st.multiselect("📊 Variáveis Explicativas (X):", features_possiveis, default=[features_possiveis[0]], format_func=lambda x: mapa_nomes[x])
+
+    if features:
+        # Preparação
+        X = df[features]
+        y = df[target]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        # Modelo
+        model = LinearRegression()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        
+        # Métricas
+        r2 = r2_score(y_test, y_pred)
+        mae = mean_absolute_error(y_test, y_pred)
+        
+        c1, c2 = st.columns(2)
+        c1.metric("R² (Capacidade de Explicação)", f"{r2:.2%}", help="Quanto da variação do Y é explicado pelo X.")
+        c2.metric("Erro Médio (MAE)", f"{mae:.2f}", help="Erro médio absoluto na unidade da variável.")
+        
+        # Tabela de Coeficientes
+        coef_df = pd.DataFrame({'Variável': [mapa_nomes[f] for f in features], 'Impacto (Coef)': model.coef_})
+        coef_df = coef_df.sort_values(by='Impacto (Coef)', key=abs, ascending=False)
+        st.markdown("#### ⚖️ Peso de cada Variável")
+        st.dataframe(coef_df, hide_index=True, use_container_width=True)
+        
+        # Gráfico Real vs Previsto
+        fig = px.scatter(
+            x=y_test, 
+            y=y_pred, 
+            labels={'x': 'Valor Real', 'y': 'Valor Previsto'}, 
+            opacity=0.6, 
+            title="Realidade vs Modelo",
+            color_discrete_sequence=['#5C6BC0']
         )
-    
-    # Processamento
-    df_filtrado = df[df['estacao'] == estacao_selecionada].copy()
-    # Agrupa por ANO e ESTADO
-    df_animacao = df_filtrado.groupby(['ano', 'state'])[var_col].mean().reset_index()
-    df_animacao = df_animacao.sort_values(['ano', 'state']) # Ordenação para estabilidade
+        fig.add_shape(type="line", line=dict(dash='dash', color="gray"), x0=y.min(), y0=y.max(), x1=y.min(), y1=y.max())
+        
+        # Configuração Travada
+        fig.update_layout(xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True))
+        st.plotly_chart(fig, use_container_width=True, config=config_padrao)
 
-    # Gráfico Tab 1
-    fig1 = px.choropleth_mapbox(
-        df_animacao,
-        geojson=geojson,
-        locations='state',
-        featureidkey="properties.sigla",
-        color=var_col,
-        animation_frame="ano", # Animação corre pelos ANOS
-        color_continuous_scale=escala,
-        range_color=global_ranges[var_col], # <--- TRAVAMENTO DE ESCALA AQUI
-        mapbox_style="carto-positron",
-        zoom=3.0,
-        center={"lat": -15.0, "lon": -54.0},
-        opacity=0.9,
-        height=600
-    )
-    
-    fig1.update_layout(
-        margin={"r":0,"t":0,"l":0,"b":0},
-        dragmode=False,
-        coloraxis_colorbar=dict(title=var_label)
-    )
-
-    fig1.layout.sliders[0].currentvalue.prefix = "Ano: "
-    
-    # Ajuste de velocidade
-    try:
-        fig1.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1000
-    except: pass
-
-    st.plotly_chart(fig1, use_container_width=True, config=config_padrao)
-
-# ==========================================
-# ABA 2: VISÃO SAZONAL (VERÃO 14 -> OUTONO 21)
-# ==========================================
+# ==============================================================================
+# TAB 2: CLUSTERING (Não Supervisionado - K-Means) - AJUSTADO
+# ==============================================================================
 with tab2:
-    st.markdown(f"**Evolução por Estações:** Agrupamento trimestral (Verão, Outono, Inverno, Primavera).")
-
-    # 1. Função auxiliar para definir estação e ajustar o ano
-    # (O Verão de 2015, por exemplo, é composto por Dez/14, Jan/15 e Fev/15)
-    def get_estacao_info(row):
-        mes = row['mes']
-        ano = row['ano']
-        
-        if mes in [12, 1, 2]:
-            # Se for Dezembro, pertence ao Verão do ano SEGUINTE
-            ano_ref = ano + 1 if mes == 12 else ano
-            return "Verão", 1, ano_ref
-        elif mes in [3, 4, 5]:
-            return "Outono", 2, ano
-        elif mes in [6, 7, 8]:
-            return "Inverno", 3, ano
-        else: # 9, 10, 11
-            return "Primavera", 4, ano
-
-    # 2. Aplicando a lógica no DataFrame
-    df_sazonal = df.copy()
+    st.subheader("Redefinindo o Brasil Climático")
+    st.markdown("A IA agrupa estados com comportamentos climáticos semelhantes, ignorando fronteiras.")
     
-    # Aplica a função e expande o resultado em colunas novas
-    # Resulta em: Nome da Estação, Ordem (1-4) para sort, e Ano da Estação
-    season_data = df_sazonal.apply(get_estacao_info, axis=1, result_type='expand')
-    df_sazonal[['estacao', 'ordem_estacao', 'ano_estacao']] = season_data
-
-    # 3. Agrupamento (Média por Estação/Ano/Estado)
-    df_anim_sazonal = df_sazonal.groupby(['ano_estacao', 'estacao', 'ordem_estacao', 'state'])[var_col].mean().reset_index()
-
-    # 4. Ordenação CRONOLÓGICA (Ano -> Ordem da Estação -> Estado)
-    df_anim_sazonal = df_anim_sazonal.sort_values(['ano_estacao', 'ordem_estacao', 'state'])
-
-    # 5. Criar Label para a Animação (Ex: "Verão/2015")
-    df_anim_sazonal['periodo_label'] = df_anim_sazonal['estacao'] + "/" + df_anim_sazonal['ano_estacao'].astype(str)
-
-    # Gráfico Tab 2
-    fig2 = px.choropleth_mapbox(
-        df_anim_sazonal,
-        geojson=geojson,
-        locations='state',
-        featureidkey="properties.sigla",
-        color=var_col,
+    col1, col2 = st.columns([1, 3])
+    
+    with col1:
+        n_clusters = st.slider("Número de Grupos:", 2, 8, 4)
+        features_cluster = st.multiselect(
+            "Variáveis para Agrupar:", 
+            list(mapa_nomes.keys()),
+            default=['temperatura_media', 'chuva_media_semanal', 'umidade_media'],
+            format_func=lambda x: mapa_nomes[x],
+            key='cluster_features'
+        )
         
-        # Animação pelas estações
-        animation_frame="periodo_label", 
+    if features_cluster:
+        # Agrupamento da média histórica por estado
+        df_estado = df.groupby('state')[features_cluster].mean().reset_index()
         
-        color_continuous_scale=escala,
-        range_color=global_ranges[var_col],
-        mapbox_style="carto-positron",
-        zoom=3.0,
-        center={"lat": -15.0, "lon": -54.0},
-        opacity=0.9,
-        height=600
+        # Normalização (Crucial para K-Means)
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(df_estado[features_cluster])
+        
+        # Modelo
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        df_estado['Cluster'] = kmeans.fit_predict(X_scaled).astype(str)
+        
+        with col2:
+            if geojson:
+                # Mapa ajustado com Zoom/Center/Cores melhores
+                fig_map = px.choropleth_mapbox(
+                    df_estado, 
+                    geojson=geojson, 
+                    locations='state', 
+                    featureidkey="properties.sigla",
+                    color='Cluster', 
+                    mapbox_style="carto-positron", 
+                    
+                    # --- AJUSTES SOLICITADOS ---
+                    zoom=3.0, 
+                    center={"lat": -15.0, "lon": -54.0},
+                    color_discrete_sequence=px.colors.qualitative.Bold, # Cores mais fortes e distintas
+                    # ---------------------------
+                    
+                    title="Grupos Climáticos Identificados",
+                    opacity=0.9
+                )
+                
+                # Ajuste de layout para ficar igual ao exemplo
+                fig_map.update_layout(
+                    margin={"r":0,"t":40,"l":0,"b":0},
+                    legend_title_text="Grupo (Cluster)"
+                )
+                st.plotly_chart(fig_map, use_container_width=True, config=config_padrao)
+            else:
+                st.warning("Mapa não carregou (GeoJSON offline).")
+        
+        with st.expander("Ver detalhes dos grupos"):
+            resumo = df_estado.groupby('Cluster')[features_cluster].mean().reset_index()
+            resumo = resumo.rename(columns=mapa_nomes)
+            st.dataframe(resumo.style.background_gradient(cmap='Blues'), use_container_width=True)
+
+# ==============================================================================
+# TAB 3: DETECÇÃO DE ANOMALIAS (Isolation Forest)
+# ==============================================================================
+with tab3:
+    st.subheader("Caçador de Extremos Climáticos")
+    st.markdown("O algoritmo detecta semanas 'bizarras' que fogem do padrão normal.")
+    
+    c_iso1, c_iso2 = st.columns(2)
+    contamination = c_iso1.slider("Sensibilidade (% de Anomalias):", 1, 10, 2) / 100
+    estado_anomalia = c_iso2.selectbox("Filtrar Estado:", sorted(df['state'].unique()), key='iso_state')
+    
+    if st.button("Detectar Anomalias"):
+        df_iso = df[df['state'] == estado_anomalia].copy()
+        features_iso = ['temperatura_media', 'chuva_media_semanal', 'umidade_media', 'vento_medio']
+        
+        # Modelo
+        iso = IsolationForest(contamination=contamination, random_state=42)
+        df_iso['anomalia'] = iso.fit_predict(df_iso[features_iso])
+        
+        anomalias = df_iso[df_iso['anomalia'] == -1]
+        st.metric("Semanas Anômalas Encontradas", len(anomalias))
+        
+        # Gráfico
+        fig_iso = px.scatter(
+            df_iso, x='semana_ref', y='temperatura_media', 
+            color=df_iso['anomalia'].astype(str),
+            color_discrete_map={'-1': '#EF5350', '1': '#BDBDBD'}, # Vermelho (Anomalia) e Cinza (Normal)
+            title=f"Linha do Tempo: Vermelho = Anomalia",
+            hover_data=features_iso,
+            labels={'semana_ref': 'Data', 'temperatura_media': 'Temperatura Média (C)'}
+        )
+        
+        # Configuração Travada
+        fig_iso.update_layout(
+            xaxis=dict(fixedrange=True, title="Data"), 
+            yaxis=dict(fixedrange=True, title="Temperatura Média (C)"),
+            showlegend=False
+        )
+        st.plotly_chart(fig_iso, use_container_width=True, config=config_padrao)
+        
+        st.markdown("**Dados das Anomalias:**")
+        anomalias_view = anomalias[['semana_ref'] + features_iso].sort_values('semana_ref').rename(columns=mapa_nomes)
+        st.dataframe(anomalias_view, use_container_width=True)
+
+# ==============================================================================
+# TAB 4: PREVISÃO TEMPORAL (Séries Temporais com Validação)
+# ==============================================================================
+with tab4:
+    st.subheader("🔮 Previsão de Futuro com Backtesting")
+    st.markdown("O modelo aprende Tendência (Anos) e Sazonalidade (Meses).")
+    
+    var_time = st.selectbox("O que prever?", list(mapa_nomes.keys()), format_func=lambda x: mapa_nomes[x], key='time_var')
+    estado_filtro = st.selectbox("Filtrar por Estado:", sorted(df['state'].unique()), key='time_state_filter')
+    
+    # Preparação
+    df_time = df[df['state'] == estado_filtro].copy()
+    df_grouped = df_time.groupby('semana_ref')[var_time].mean().reset_index().sort_values('semana_ref')
+    
+    # Feature Engineering
+    df_grouped['dia_ordinal'] = df_grouped['semana_ref'].apply(lambda x: x.toordinal())
+    df_grouped['mes'] = df_grouped['semana_ref'].dt.month
+    
+    # Dummies para Sazonalidade
+    meses_dummies = pd.get_dummies(df_grouped['mes'], prefix='mes').astype(int)
+    for i in range(1, 13):
+        if f'mes_{i}' not in meses_dummies.columns: meses_dummies[f'mes_{i}'] = 0
+    meses_dummies = meses_dummies[sorted(meses_dummies.columns)]
+    
+    df_ml = pd.concat([df_grouped, meses_dummies], axis=1)
+    features_time = ['dia_ordinal'] + list(meses_dummies.columns)
+    
+    # Cor padrão (Azul Plotly)
+    cor_padrao = '#1f77b4'
+
+    # --- VALIDAÇÃO (BACKTESTING) ---
+    st.markdown("### 1️⃣ Validação: Teste no Passado")
+    qtd_teste = 52 # Último ano
+    
+    if len(df_ml) > qtd_teste * 2:
+        train = df_ml.iloc[:-qtd_teste]
+        test = df_ml.iloc[-qtd_teste:]
+        
+        model_val = LinearRegression()
+        model_val.fit(train[features_time], train[var_time])
+        pred_val = model_val.predict(test[features_time])
+        
+        mae_val = mean_absolute_error(test[var_time], pred_val)
+        erro_perc = (mae_val / test[var_time].mean()) * 100
+        
+        c_v1, c_v2, c_v3 = st.columns(3)
+        c_v1.metric("Erro Médio (MAE)", f"{mae_val:.2f}")
+        c_v2.metric("Margem de Erro (%)", f"{erro_perc:.1f}%")
+        
+        if erro_perc < 10: c_v3.success("✅ Modelo Confiável")
+        elif erro_perc < 20: c_v3.warning("⚠️ Precisão Razoável")
+        else: c_v3.error("❌ Modelo Instável")
+        
+        # Gráfico Validação
+        fig_val = go.Figure()
+        fig_val.add_trace(go.Scatter(x=train['semana_ref'], y=train[var_time], name='Treino', line=dict(color='gray', width=1)))
+        fig_val.add_trace(go.Scatter(x=test['semana_ref'], y=test[var_time], name='Realidade', line=dict(color=cor_padrao, width=2)))
+        fig_val.add_trace(go.Scatter(x=test['semana_ref'], y=pred_val, name='Modelo', line=dict(color='#FFA726', dash='dot', width=2)))
+        
+        fig_val.update_layout(
+            height=350, 
+            margin=dict(t=30, b=0, l=0, r=0),
+            xaxis=dict(fixedrange=True, title="Data"), 
+            yaxis=dict(fixedrange=True, title=mapa_nomes[var_time])
+        )
+        st.plotly_chart(fig_val, use_container_width=True, config=config_padrao)
+    else:
+        st.warning("Dados insuficientes para validação.")
+
+    # --- PREVISÃO FUTURA ---
+    st.markdown("### 2️⃣ Projeção Futura (12 Meses)")
+    
+    # Treino com TUDO
+    model_full = LinearRegression()
+    model_full.fit(df_ml[features_time], df_ml[var_time])
+    
+    # Datas futuras
+    ultima_data = df_grouped['semana_ref'].max()
+    datas_futuras = [ultima_data + pd.Timedelta(days=x) for x in range(7, 365, 7)]
+    df_fut = pd.DataFrame({'semana_ref': datas_futuras})
+    df_fut['dia_ordinal'] = df_fut['semana_ref'].apply(lambda x: x.toordinal())
+    df_fut['mes'] = df_fut['semana_ref'].dt.month
+    
+    # Dummies futuro
+    dum_fut = pd.get_dummies(df_fut['mes'], prefix='mes').astype(int)
+    for col in meses_dummies.columns:
+        if col not in dum_fut.columns: dum_fut[col] = 0
+    dum_fut = dum_fut[sorted(meses_dummies.columns)]
+    
+    X_fut = pd.concat([df_fut[['dia_ordinal']], dum_fut], axis=1)
+    y_fut = model_full.predict(X_fut)
+    
+    # Plot Final
+    fig_fut = go.Figure()
+    fig_fut.add_trace(go.Scatter(x=df_grouped['semana_ref'], y=df_grouped[var_time], name='Histórico', line=dict(color=cor_padrao)))
+    fig_fut.add_trace(go.Scatter(x=df_fut['semana_ref'], y=y_fut, name='Previsão Futura', line=dict(color='#66BB6A', width=3)))
+    
+    # Intervalo de Confiança (Sombra)
+    if 'mae_val' in locals():
+        fig_fut.add_trace(go.Scatter(
+            x=list(df_fut['semana_ref']) + list(df_fut['semana_ref'])[::-1],
+            y=list(y_fut + mae_val) + list(y_fut - mae_val)[::-1],
+            fill='toself', fillcolor='rgba(102, 187, 106, 0.2)', # Verde suave transparente
+            line=dict(color='rgba(255,255,255,0)'), name='Margem de Erro'
+        ))
+        
+    fig_fut.update_layout(
+        height=500, 
+        title=f"Projeção: {mapa_nomes[var_time]} em {estado_filtro}",
+        xaxis=dict(fixedrange=True, title="Data"), 
+        yaxis=dict(fixedrange=True, title=mapa_nomes[var_time])
     )
-
-    fig2.update_layout(
-        margin={"r":0,"t":0,"l":0,"b":0},
-        dragmode=False,
-        coloraxis_colorbar=dict(title=var_label)
-    )
-
-    fig2.layout.sliders[0].currentvalue.prefix = ""
-
-    # Velocidade: Como temos menos frames (4 por ano), podemos deixar mais lento para apreciar (800ms)
-    try:
-        fig2.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 800
-    except: pass
-
-    st.plotly_chart(fig2, use_container_width=True, config=config_padrao)
-# --- TABELA DE DADOS (EXPANSÍVEL GERAL) ---
-st.divider()
-with st.expander("🔎 Ver Tabela de Dados Brutos"):
-    st.dataframe(df.head(500), use_container_width=True)
+    st.plotly_chart(fig_fut, use_container_width=True, config=config_padrao)
