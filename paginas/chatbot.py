@@ -10,15 +10,11 @@ Você pode perguntar sobre as escolhas estatísticas, as bibliotecas utilizadas 
 
 # --- 1. CONFIGURAÇÃO DA API ---
 # Tenta pegar do secrets (nuvem) ou pede na sidebar (local)
-api_key = st.sidebar.text_input("Gemini API Key:", type="password")
-
 # Se estiver rodando localmente sem secrets, use a input. Se tiver secrets, usa direto.
 if not api_key:
-    if "GEMINI_KEY" in st.secrets:
-        api_key = st.secrets["GEMINI_KEY"]
-    else:
-        st.warning("⚠️ Insira a chave da API do Google Gemini na barra lateral para começar.")
-        st.stop()
+    "GEMINI_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_KEY"]
+
 
 try:
     genai.configure(api_key=api_key)
