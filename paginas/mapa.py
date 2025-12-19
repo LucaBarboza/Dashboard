@@ -159,32 +159,35 @@ with tab1:
 
 
 # ==========================================
-# ABA 2: VISÃO MENSAL (Novo)
+# ABA 2: VISÃO LINHA DO TEMPO (JAN/15 a ABR/21)
 # ==========================================
 with tab2:
-    st.markdown(f"**Análise Mensal:** Veja a variação de Jan a Dez dentro de um ano específico.")
+    st.markdown(f"**Linha do Tempo Completa:** Evolução mês a mês de todo o período (2015 a 2021).")
     
-    # Filtro de Ano específico para esta aba
-    lista_anos = sorted(df['ano'].unique())
-    ano_selecionado = st.select_slider("Selecione o Ano para detalhar:", options=lista_anos, value=lista_anos[-1])
+    # 1. Não filtramos mais por ano. Usamos o DF completo.
+    # Agrupa por ANO, MÊS, NOME_MES e ESTADO
+    df_timeline = df.groupby(['ano', 'mes', 'nome_mes', 'state'])[var_col].mean().reset_index()
     
-    # Processamento
-    df_mensal = df[df['ano'] == ano_selecionado].copy()
-    # Agrupa por MÊS e ESTADO
-    # Incluímos 'nome_mes' no groupby para usá-lo na animação, e 'mes' para ordenar corretamente
-    df_anim_mensal = df_mensal.groupby(['mes', 'nome_mes', 'state'])[var_col].mean().reset_index()
-    df_anim_mensal = df_anim_mensal.sort_values(['mes', 'state']) # Garante Jan -> Dez e Estados A-Z
+    # 2. Ordenação CRUCIAL: Primeiro por Ano, depois por Mês (número) e por fim Estado
+    # Isso garante que a animação siga a cronologia correta
+    df_timeline = df_timeline.sort_values(['ano', 'mes', 'state'])
+    
+    # 3. Criar uma coluna de texto para exibir no slider da animação (ex: "Jan/2015")
+    df_timeline['periodo_label'] = df_timeline['nome_mes'] + "/" + df_timeline['ano'].astype(str)
 
     # Gráfico Tab 2
     fig2 = px.choropleth_mapbox(
-        df_anim_mensal,
+        df_timeline,
         geojson=geojson,
         locations='state',
         featureidkey="properties.sigla",
         color=var_col,
-        animation_frame="nome_mes", # Animação corre pelos MESES (Jan, Fev...)
+        
+        # AQUI MUDOU: A animação agora usa a coluna combinada (Mês/Ano)
+        animation_frame="periodo_label", 
+        
         color_continuous_scale=escala,
-        range_color=global_ranges[var_col], # <--- MESMA ESCALA DA ABA 1
+        range_color=global_ranges[var_col], # Mantém a escala global fixa
         mapbox_style="carto-positron",
         zoom=3.0,
         center={"lat": -15.0, "lon": -54.0},
@@ -198,9 +201,10 @@ with tab2:
         coloraxis_colorbar=dict(title=var_label)
     )
 
-    # Velocidade um pouco mais rápida para os meses
+    # Ajuste de velocidade (frame duration)
+    # Como são muitos meses (aprox 76 frames), 100ms ou 200ms deixa mais fluido
     try:
-        fig2.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 500
+        fig2.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 150
     except: pass
 
     st.plotly_chart(fig2, use_container_width=True, config=config_padrao)
