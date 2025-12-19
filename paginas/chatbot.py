@@ -19,7 +19,7 @@ if "GEMINI_KEY" in st.secrets:
 try:
     genai.configure(api_key=api_key)
     # Usando o modelo Flash (Rápido e Inteligente)
-    model = genai.GenerativeModel('gemini-1.5-flash') 
+    model = genai.GenerativeModel('gemini-2.5-flash') 
 except Exception as e:
     st.error(f"Erro de Configuração: {e}")
     st.stop()
