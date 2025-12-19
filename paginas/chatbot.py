@@ -11,15 +11,15 @@ Você pode perguntar sobre as escolhas estatísticas, as bibliotecas utilizadas 
 # --- 1. CONFIGURAÇÃO DA API ---
 # Tenta pegar do secrets (nuvem) ou pede na sidebar (local)
 # Se estiver rodando localmente sem secrets, use a input. Se tiver secrets, usa direto.
-if not api_key:
-    "GEMINI_KEY" in st.secrets:
+
+if "GEMINI_KEY" in st.secrets:
     api_key = st.secrets["GEMINI_KEY"]
 
 
 try:
     genai.configure(api_key=api_key)
     # Usando o modelo Flash (Rápido e Inteligente)
-    model = genai.GenerativeModel('gemini-2.5-flash') 
+    model = genai.GenerativeModel('gemini-1.5-flash') 
 except Exception as e:
     st.error(f"Erro de Configuração: {e}")
     st.stop()
