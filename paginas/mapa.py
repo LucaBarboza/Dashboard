@@ -139,4 +139,13 @@ with tab2:
         df_mes, geojson=geojson, locations='state', featureidkey="properties.sigla",
         color=var_col, 
         color_continuous_scale=escala, range_color=global_ranges[var_col],
-        mapbox_style="carto-positron", zoom=3, center={"lat": -15, "lon": -54}, opacity=0.9, height
+        mapbox_style="carto-positron", zoom=3, center={"lat": -15, "lon": -54}, opacity=0.9, height=500
+    )
+    fig2.update_layout(margin={"r":0,"t":0,"l":0,"b":0}, dragmode=False)
+    st.plotly_chart(fig2, use_container_width=True)
+
+    # Limpa variável temporária
+    del df_mes
+
+# Força limpeza final de RAM
+gc.collect()
