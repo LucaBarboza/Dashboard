@@ -110,104 +110,51 @@ tab1, tab2 = st.tabs(["🍂 Por Estação (Anos)", "📅 Por Mês (Detalhado)"])
 # ==========================================
 # ABA 1: VISÃO SAZONAL (O que você já tinha)
 # ==========================================
-with tab1:
-    st.markdown(f"**Análise Sazonal:** Veja como {var_label} mudou ao longo dos **Anos** para uma estação específica.")
-    
-    col_filtro1, col_filtro2 = st.columns([1, 3])
-    with col_filtro1:
-        estacao_selecionada = st.radio(
-            "Escolha a Estação:",
-            ["Verão", "Outono", "Inverno", "Primavera"],
-            horizontal=False
-        )
-    
-    # Processamento
-    df_filtrado = df[df['estacao'] == estacao_selecionada].copy()
-    # Agrupa por ANO e ESTADO
-    df_animacao = df_filtrado.groupby(['ano', 'state'])[var_col].mean().reset_index()
-    df_animacao = df_animacao.sort_values(['ano', 'state']) # Ordenação para estabilidade
+st.markdown(f"**Análise Sazonal:** Veja como {var_label} mudou ao longo dos **Anos** para uma estação específica.")
 
-    # Gráfico Tab 1
-    fig1 = px.choropleth_mapbox(
-        df_animacao,
-        geojson=geojson,
-        locations='state',
-        featureidkey="properties.sigla",
-        color=var_col,
-        animation_frame="ano", # Animação corre pelos ANOS
-        color_continuous_scale=escala,
-        range_color=global_ranges[var_col], # <--- TRAVAMENTO DE ESCALA AQUI
-        mapbox_style="carto-positron",
-        zoom=3.0,
-        center={"lat": -15.0, "lon": -54.0},
-        opacity=0.9,
-        height=600
-    )
-    
-    fig1.update_layout(
-        margin={"r":0,"t":0,"l":0,"b":0},
-        dragmode=False,
-        coloraxis_colorbar=dict(title=var_label)
-    )
-    
-    # Ajuste de velocidade
-    try:
-        fig1.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1000
-    except: pass
-
-    st.plotly_chart(fig1, use_container_width=True, config=config_padrao)
-
-
-# ==========================================
-# ABA 2: VISÃO LINHA DO TEMPO (JAN/15 a ABR/21)
-# ==========================================
-with tab2:
-    st.markdown(f"**Linha do Tempo Completa:** Evolução mês a mês de todo o período (2015 a 2021).")
-    
-    # 1. Não filtramos mais por ano. Usamos o DF completo.
-    # Agrupa por ANO, MÊS, NOME_MES e ESTADO
-    df_timeline = df.groupby(['ano', 'mes', 'nome_mes', 'state'])[var_col].mean().reset_index()
-    
-    # 2. Ordenação CRUCIAL: Primeiro por Ano, depois por Mês (número) e por fim Estado
-    # Isso garante que a animação siga a cronologia correta
-    df_timeline = df_timeline.sort_values(['ano', 'mes', 'state'])
-    
-    # 3. Criar uma coluna de texto para exibir no slider da animação (ex: "Jan/2015")
-    df_timeline['periodo_label'] = df_timeline['nome_mes'] + "/" + df_timeline['ano'].astype(str)
-
-    # Gráfico Tab 2
-    fig2 = px.choropleth_mapbox(
-        df_timeline,
-        geojson=geojson,
-        locations='state',
-        featureidkey="properties.sigla",
-        color=var_col,
-        
-        # AQUI MUDOU: A animação agora usa a coluna combinada (Mês/Ano)
-        animation_frame="periodo_label", 
-        
-        color_continuous_scale=escala,
-        range_color=global_ranges[var_col], # Mantém a escala global fixa
-        mapbox_style="carto-positron",
-        zoom=3.0,
-        center={"lat": -15.0, "lon": -54.0},
-        opacity=0.9,
-        height=600
+col_filtro1, col_filtro2 = st.columns([1, 3])
+with col_filtro1:
+    estacao_selecionada = st.radio(
+        "Escolha a Estação:",
+        ["Verão", "Outono", "Inverno", "Primavera"],
+        horizontal=False
     )
 
-    fig2.update_layout(
-        margin={"r":0,"t":0,"l":0,"b":0},
-        dragmode=False,
-        coloraxis_colorbar=dict(title=var_label)
-    )
+# Processamento
+df_filtrado = df[df['estacao'] == estacao_selecionada].copy()
+# Agrupa por ANO e ESTADO
+df_animacao = df_filtrado.groupby(['ano', 'state'])[var_col].mean().reset_index()
+df_animacao = df_animacao.sort_values(['ano', 'state']) # Ordenação para estabilidade
 
-    # Ajuste de velocidade (frame duration)
-    # Como são muitos meses (aprox 76 frames), 100ms ou 200ms deixa mais fluido
-    try:
-        fig2.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 150
-    except: pass
+# Gráfico Tab 1
+fig1 = px.choropleth_mapbox(
+    df_animacao,
+    geojson=geojson,
+    locations='state',
+    featureidkey="properties.sigla",
+    color=var_col,
+    animation_frame="ano", # Animação corre pelos ANOS
+    color_continuous_scale=escala,
+    range_color=global_ranges[var_col], # <--- TRAVAMENTO DE ESCALA AQUI
+    mapbox_style="carto-positron",
+    zoom=3.0,
+    center={"lat": -15.0, "lon": -54.0},
+    opacity=0.9,
+    height=600
+)
 
-    st.plotly_chart(fig2, use_container_width=True, config=config_padrao)
+fig1.update_layout(
+    margin={"r":0,"t":0,"l":0,"b":0},
+    dragmode=False,
+    coloraxis_colorbar=dict(title=var_label)
+)
+
+# Ajuste de velocidade
+try:
+    fig1.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1000
+except: pass
+
+st.plotly_chart(fig1, use_container_width=True, config=config_padrao)
 
 # --- TABELA DE DADOS (EXPANSÍVEL GERAL) ---
 st.divider()
