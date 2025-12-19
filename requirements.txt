@@ -13,3 +13,4 @@ branca
 scipy
 scikit-learn
 statsmodels
+google-generativeai
