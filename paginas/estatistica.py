@@ -74,40 +74,39 @@ with st.expander("Ver Matrizes de Correlação Interativas", expanded=True):
     
     col_pearson, col_spearman = st.columns(2)
     
-    def configurar_layout_mapa(fig):
+    def configurar_layout_limpo(fig):
         fig.update_layout(
             height=550,
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=20, r=20, t=50, b=20),
+            coloraxis_colorbar=dict(title="Corr")
         )
-        fig.update_xaxes(showgrid=False, zeroline=False)
-        fig.update_yaxes(showgrid=False, zeroline=False)
         return fig
 
     with col_pearson:
-        st.markdown("#### 🔵 Pearson (Linear)")
+        st.markdown("#### 🔵 Pearson (Linear) - Azul e Vermelho")
         corr_p = df_corr_renomeado[colunas_numericas].corr(method='pearson')
         fig_p = px.imshow(
             corr_p,
             text_auto=".2f",
             aspect="equal", 
-            color_continuous_scale="Picnic", 
+            color_continuous_scale="RdBu_r", 
             zmin=-1, zmax=1
         )
-        st.plotly_chart(configurar_layout_mapa(fig_p), use_container_width=True)
+        st.plotly_chart(configurar_layout_limpo(fig_p), use_container_width=True)
 
     with col_spearman:
-        st.markdown("#### 🟢 Spearman (Rank)")
+        st.markdown("#### 🟢 Spearman (Rank) - Verde e Vermelho")
         corr_s = df_corr_renomeado[colunas_numericas].corr(method='spearman')
         fig_s = px.imshow(
             corr_s,
             text_auto=".2f",
             aspect="equal", 
-            color_continuous_scale="Tealrose", 
+            color_continuous_scale="RdYlGn", 
             zmin=-1, zmax=1
         )
-        st.plotly_chart(configurar_layout_mapa(fig_s), use_container_width=True)
+        st.plotly_chart(configurar_layout_limpo(fig_s), use_container_width=True)
 
 # --- 3. TESTE DE HIPÓTESES ---
 # (O restante do seu código permanece igual abaixo)
