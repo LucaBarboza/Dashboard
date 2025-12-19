@@ -7,6 +7,15 @@ from scipy import stats
 
 st.set_page_config(layout="wide")
 
+# --- CONFIGURAÇÃO PADRÃO DOS GRÁFICOS (Recuperado) ---
+config_padrao = {
+    'displaylogo': False,
+    'modeBarButtonsToRemove': [
+        'zoom2d', 'pan2d', 'select2d', 'lasso2d', 
+        'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
+    ]
+}
+
 st.header("📊 Laboratório de Análise Estatística")
 st.markdown("Aqui você pode explorar correlações e testar hipóteses comparando diferentes grupos automaticamente.")
 
